@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using PRMTool.Application.DTOs;
 
 namespace PRMTool.Application.Interfaces
 {
@@ -7,5 +8,6 @@ namespace PRMTool.Application.Interfaces
     {
         Task<string> GetRiskSummaryAsync(int projectId);
         Task<IEnumerable<string>> GetSkillMatchAsync(int projectId, int employeeId);
+        Task<IEnumerable<AIMatchResultDto>> SearchTeamResourcesAsync(int managerId, string query, int projectId);
     }
 }

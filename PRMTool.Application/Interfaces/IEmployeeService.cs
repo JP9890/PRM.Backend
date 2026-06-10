@@ -16,5 +16,6 @@ namespace PRMTool.Application.Interfaces
         Task<EmployeeSkillDto> AddSkillAsync(int employeeId, AddSkillDto dto);
         Task<EmployeeSkillDto?> UpdateSkillProficiencyAsync(int employeeId, int skillId, UpdateSkillProficiencyDto dto);
         Task<bool> RemoveSkillAsync(int employeeId, int skillId);
+        Task<EmployeeDto?> GetByUserIdAsync(int userId);
     }
 }

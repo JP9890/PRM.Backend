@@ -1,9 +1,14 @@
 using System.Text;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using PRMTool.Infrastructure.Data;
+using PRMTool.Domain.Interfaces;
+using PRMTool.Infrastructure.Repositories;
+using PRMTool.Application.Interfaces;
+using PRMTool.Application.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,26 +25,26 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo { Title = "PRMTool API", Version = "v1" });
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "PRMTool API", Version = "v1" });
 
     // Add JWT Authentication to Swagger
-    c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
-        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+        Type = SecuritySchemeType.Http,
         Scheme = "Bearer",
         BearerFormat = "JWT",
-        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        In = ParameterLocation.Header,
         Description = "Enter 'Bearer' [space] and then your valid token in the text input below.\r\n\r\nExample: \"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\""
     });
-    c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
-            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            new OpenApiSecurityScheme
             {
-                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                Reference = new OpenApiReference
                 {
-                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Type = ReferenceType.SecurityScheme,
                     Id = "Bearer"
                 }
             },
@@ -49,27 +54,27 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 // Register Repositories
-builder.Services.AddScoped<PRMTool.Domain.Interfaces.IUserRepository, PRMTool.Infrastructure.Repositories.UserRepository>();
-builder.Services.AddScoped<PRMTool.Domain.Interfaces.IRoleRepository, PRMTool.Infrastructure.Repositories.RoleRepository>();
-builder.Services.AddScoped<PRMTool.Domain.Interfaces.IEmployeeRepository, PRMTool.Infrastructure.Repositories.EmployeeRepository>();
-builder.Services.AddScoped<PRMTool.Domain.Interfaces.IEmployeeSkillRepository, PRMTool.Infrastructure.Repositories.EmployeeSkillRepository>();
-builder.Services.AddScoped<PRMTool.Domain.Interfaces.IProjectRepository, PRMTool.Infrastructure.Repositories.ProjectRepository>();
-builder.Services.AddScoped<PRMTool.Domain.Interfaces.IMilestoneRepository, PRMTool.Infrastructure.Repositories.MilestoneRepository>();
-builder.Services.AddScoped<PRMTool.Domain.Interfaces.IAllocationRepository, PRMTool.Infrastructure.Repositories.AllocationRepository>();
-builder.Services.AddScoped<PRMTool.Domain.Interfaces.ISystemSettingRepository, PRMTool.Infrastructure.Repositories.SystemSettingRepository>();
-builder.Services.AddScoped<PRMTool.Domain.Interfaces.ITimesheetRepository, PRMTool.Infrastructure.Repositories.TimesheetRepository>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IRoleRepository, RoleRepository>();
+builder.Services.AddScoped<IEmployeeRepository, EmployeeRepository>();
+builder.Services.AddScoped<IEmployeeSkillRepository, EmployeeSkillRepository>();
+builder.Services.AddScoped<IProjectRepository, ProjectRepository>();
+builder.Services.AddScoped<IMilestoneRepository, MilestoneRepository>();
+builder.Services.AddScoped<IAllocationRepository, AllocationRepository>();
+builder.Services.AddScoped<ISystemSettingRepository, SystemSettingRepository>();
+builder.Services.AddScoped<ITimesheetRepository, TimesheetRepository>();
 
 // Register Services
-builder.Services.AddScoped<PRMTool.Application.Interfaces.IAuthService, PRMTool.Application.Services.AuthService>();
-builder.Services.AddScoped<PRMTool.Application.Interfaces.IUserService, PRMTool.Application.Services.UserService>();
-builder.Services.AddScoped<PRMTool.Application.Interfaces.IRoleService, PRMTool.Application.Services.RoleService>();
-builder.Services.AddScoped<PRMTool.Application.Interfaces.IEmployeeService, PRMTool.Application.Services.EmployeeService>();
-builder.Services.AddScoped<PRMTool.Application.Interfaces.IProjectService, PRMTool.Application.Services.ProjectService>();
-builder.Services.AddScoped<PRMTool.Application.Interfaces.IAllocationService, PRMTool.Application.Services.AllocationService>();
-builder.Services.AddScoped<PRMTool.Application.Interfaces.ISystemSettingsService, PRMTool.Application.Services.SystemSettingsService>();
-builder.Services.AddScoped<PRMTool.Application.Interfaces.ITimesheetService, PRMTool.Application.Services.TimesheetService>();
-builder.Services.AddScoped<PRMTool.Application.Interfaces.IManagerService, PRMTool.Application.Services.ManagerService>();
-builder.Services.AddScoped<PRMTool.Application.Interfaces.IAIService, PRMTool.Application.Services.AIService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IRoleService, RoleService>();
+builder.Services.AddScoped<IEmployeeService, EmployeeService>();
+builder.Services.AddScoped<IProjectService, ProjectService>();
+builder.Services.AddScoped<IAllocationService, AllocationService>();
+builder.Services.AddScoped<ISystemSettingsService, SystemSettingsService>();
+builder.Services.AddScoped<ITimesheetService, TimesheetService>();
+builder.Services.AddScoped<IManagerService, ManagerService>();
+builder.Services.AddScoped<IAIService, AIService>();
 
 // Configure Authentication & JWT
 var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key is missing");
@@ -96,8 +101,8 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = builder.Configuration["Jwt:Audience"],
         ValidateLifetime = true,
         ClockSkew = TimeSpan.Zero,
-        NameClaimType = System.Security.Claims.ClaimTypes.Name,
-        RoleClaimType = System.Security.Claims.ClaimTypes.Role
+        NameClaimType = ClaimTypes.Name,
+        RoleClaimType = ClaimTypes.Role
     };
 });
 
@@ -117,12 +122,13 @@ using (var scope = app.Services.CreateScope())
     db.Database.Migrate();
 }
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+// Enable Swagger UI unconditionally so it is always accessible at /swagger
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "PRMTool API v1"));
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "PRMTool API v1");
+    c.RoutePrefix = "swagger"; // available at /swagger
+});
 
 app.UseHttpsRedirection();
 

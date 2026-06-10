@@ -137,6 +137,15 @@ namespace PRMTool.Application.Services
             return await MapToDtoAsync(employee);
         }
 
+        public async Task<EmployeeDto?> GetByUserIdAsync(int userId)
+        {
+            var employee = await _employeeRepository.GetByUserIdAsync(userId);
+            if (employee == null)
+                return null;
+
+            return await MapToDtoAsync(employee);
+        }
+
         public async Task<EmployeeSkillDto> AddSkillAsync(int employeeId, AddSkillDto dto)
         {
             var employee = await _employeeRepository.GetByIdAsync(employeeId);

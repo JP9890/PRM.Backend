@@ -10,7 +10,7 @@ namespace PRMTool.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "Admin")]
+    [Authorize]
     public class EmployeesController : ControllerBase
     {
         private readonly IEmployeeService _employeeService;
@@ -21,6 +21,7 @@ namespace PRMTool.API.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> GetAll([FromQuery] string? status, [FromQuery] string? department)
         {
             EmployeeStatus? statusFilter = null;
@@ -32,6 +33,7 @@ namespace PRMTool.API.Controllers
         }
 
         [HttpGet("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> GetById(int id)
         {
             var employee = await _employeeService.GetByIdAsync(id);
@@ -42,6 +44,7 @@ namespace PRMTool.API.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Create([FromBody] CreateEmployeeDto dto)
         {
             if (!ModelState.IsValid)
@@ -59,6 +62,7 @@ namespace PRMTool.API.Controllers
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateEmployeeDto dto)
         {
             if (!ModelState.IsValid)
@@ -72,6 +76,7 @@ namespace PRMTool.API.Controllers
         }
 
         [HttpPost("{id}/deactivate")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Deactivate(int id)
         {
             var employee = await _employeeService.DeactivateAsync(id);
@@ -82,6 +87,7 @@ namespace PRMTool.API.Controllers
         }
 
         [HttpPost("assign-manager")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> AssignManager([FromBody] AssignManagerDto dto)
         {
             if (!ModelState.IsValid)
@@ -99,6 +105,7 @@ namespace PRMTool.API.Controllers
         }
 
         [HttpPost("{employeeId}/skills")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> AddSkill(int employeeId, [FromBody] AddSkillDto dto)
         {
             if (!ModelState.IsValid)
@@ -116,6 +123,7 @@ namespace PRMTool.API.Controllers
         }
 
         [HttpPut("{employeeId}/skills/{skillId}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> UpdateSkillProficiency(int employeeId, int skillId, [FromBody] UpdateSkillProficiencyDto dto)
         {
             if (!ModelState.IsValid)
@@ -129,6 +137,7 @@ namespace PRMTool.API.Controllers
         }
 
         [HttpDelete("{employeeId}/skills/{skillId}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> RemoveSkill(int employeeId, int skillId)
         {
             var success = await _employeeService.RemoveSkillAsync(employeeId, skillId);
@@ -136,6 +145,17 @@ namespace PRMTool.API.Controllers
                 return NotFound(new { message = "Skill not found" });
 
             return Ok(new { message = "Skill removed successfully" });
+        }
+
+        [HttpGet("user/{userId}")]
+        [Authorize(Roles = "Employee,Manager,Admin")]
+        public async Task<IActionResult> GetByUserId(int userId)
+        {
+            var employee = await _employeeService.GetByUserIdAsync(userId);
+            if (employee == null)
+                return NotFound(new { message = "Employee not found for the given user ID." });
+
+            return Ok(employee);
         }
     }
 }

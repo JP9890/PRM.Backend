@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PRMTool.Application.DTOs;
 using PRMTool.Application.Interfaces;
 
 namespace PRMTool.API.Controllers
@@ -29,6 +30,16 @@ namespace PRMTool.API.Controllers
         {
             var matchData = await _aiService.GetSkillMatchAsync(projectId, employeeId);
             return Ok(matchData);
+        }
+
+        [HttpPost("skill-search")]
+        public async Task<IActionResult> SearchSkills([FromBody] AISearchRequestDto request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var matches = await _aiService.SearchTeamResourcesAsync(request.ManagerId, request.Query, request.ProjectId);
+            return Ok(matches);
         }
     }
 }

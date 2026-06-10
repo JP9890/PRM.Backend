@@ -40,8 +40,6 @@ namespace PRMTool.API.Controllers
         [HttpPost("logout")]
         public IActionResult Logout()
         {
-            // Stateless JWT logout is handled on the client side by removing the token.
-            // We just return a success message here.
             return Ok(new { message = "Logged out successfully" });
         }
 
