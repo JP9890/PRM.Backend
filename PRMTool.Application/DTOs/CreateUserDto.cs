@@ -20,5 +20,8 @@ namespace PRMTool.Application.DTOs
 
         [Required]
         public int RoleId { get; set; }
+
+        /// <summary>Required for Manager/Employee roles. Leave null for Admin.</summary>
+        public string? Department { get; set; }
     }
 }

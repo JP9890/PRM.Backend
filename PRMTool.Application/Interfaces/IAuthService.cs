@@ -6,6 +6,6 @@ namespace PRMTool.Application.Interfaces
     public interface IAuthService
     {
         Task<AuthResponseDto?> AuthenticateAsync(string username, string password);
-        Task<bool> ChangePasswordAsync(string username, string oldPassword, string newPassword);
+        Task<(bool Success, string ErrorMessage)> ChangePasswordAsync(string username, string oldPassword, string newPassword);
     }
 }

@@ -5,13 +5,13 @@ using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using PRMTool.Application.DTOs;
 using PRMTool.Application.Helpers;
 using PRMTool.Application.Interfaces;
 using PRMTool.Domain.Entities;
 using PRMTool.Domain.Interfaces;
+using Serilog;
 
 namespace PRMTool.Application.Services
 {
@@ -19,116 +19,145 @@ namespace PRMTool.Application.Services
     {
         private readonly IUserRepository _userRepository;
         private readonly IConfiguration _configuration;
-        private readonly ILogger<AuthService> _logger;
+        private readonly Serilog.ILogger _logger;
 
-        public AuthService(IUserRepository userRepository, IConfiguration configuration, ILogger<AuthService> logger)
+        public AuthService(IUserRepository userRepository, IConfiguration configuration, Serilog.ILogger logger)
         {
             _userRepository = userRepository;
             _configuration = configuration;
-            _logger = logger;
+            _logger = logger.ForContext<AuthService>();
         }
 
         public async Task<AuthResponseDto?> AuthenticateAsync(string username, string password)
         {
-            _logger.LogInformation("Authentication attempt for user: {Username}", username);
-
+            _logger.Information("Authentication attempt for user: {Username}", username);
             var user = await _userRepository.GetByUsernameAsync(username);
 
-            if (user == null || !user.IsActive)
+            if (!IsUserValidAndActive(user))
             {
-                _logger.LogWarning("Authentication failed for {Username}. User not found or inactive.", username);
+                _logger.Warning("Authentication failed for {Username}. User not found or inactive.", username);
                 return null;
             }
 
-            bool isPasswordValid = false;
+            if (!VerifyPassword(password, user.PasswordHash, username))
+            {
+                _logger.Warning("Authentication failed for {Username}. Invalid password.", username);
+                return null;
+            }
+
+            _logger.Information("User {Username} successfully authenticated.", username);
+            return CreateAuthResponse(user);
+        }
+
+        public async Task<(bool Success, string ErrorMessage)> ChangePasswordAsync(string username, string oldPassword, string newPassword)
+        {
+            _logger.Information("Password change attempt for user: {Username}", username);
+            var user = await _userRepository.GetByUsernameAsync(username);
+
+            if (!IsUserValidAndActive(user))
+            {
+                _logger.Warning("Password change failed. User {Username} not found or inactive.", username);
+                return (false, "User not found or inactive.");
+            }
+
+            if (!IsNewPasswordValid(newPassword, username, out var pwdError))
+            {
+                return (false, pwdError);
+            }
+
+            if (!IsOldPasswordValidIfNeeded(user, oldPassword, username))
+            {
+                return (false, "Invalid current password.");
+            }
+
+            await UpdateUserPasswordAsync(user, newPassword);
+            _logger.Information("User {Username} successfully changed their password.", username);
+            return (true, string.Empty);
+        }
+
+        private string GenerateJwtToken(User user)
+        {
+            var claims = CreateUserClaims(user);
+            var key = GetJwtSecurityKey();
+            var tokenDescriptor = CreateTokenDescriptor(claims, key);
+            
+            return WriteToken(tokenDescriptor);
+        }
+
+        private bool IsUserValidAndActive(User? user)
+        {
+            return user != null && user.IsActive;
+        }
+
+        private bool VerifyPassword(string password, string hash, string username)
+        {
             try
             {
-                if (!string.IsNullOrEmpty(password) && !string.IsNullOrEmpty(user.PasswordHash))
+                if (!string.IsNullOrEmpty(password) && !string.IsNullOrEmpty(hash))
                 {
-                    isPasswordValid = BCrypt.Net.BCrypt.Verify(password, user.PasswordHash);
+                    return BCrypt.Net.BCrypt.Verify(password, hash);
                 }
+                return false;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error verifying password for user {Username}. The hash in the database might be malformed.", username);
+                _logger.Error(ex, "Error verifying password for user {Username}. The hash in the database might be malformed.", username);
+                return false;
             }
+        }
 
-            if (!isPasswordValid)
-            {
-                _logger.LogWarning("Authentication failed for {Username}. Invalid password.", username);
-                return null;
-            }
-
+        private AuthResponseDto CreateAuthResponse(User user)
+        {
             var token = GenerateJwtToken(user);
-
-            var roles = new List<string>();
-            if (user.Role != null) roles.Add(user.Role.Name);
-
-            _logger.LogInformation("User {Username} successfully authenticated.", username);
-
             return new AuthResponseDto
             {
                 Token = token,
                 Id = user.Id,
                 Username = user.Username,
-                Roles = roles,
+                Roles = GetUserRoles(user),
                 RequiresPasswordChange = user.RequiresPasswordChange
             };
         }
 
-        public async Task<bool> ChangePasswordAsync(string username, string oldPassword, string newPassword)
+        private List<string> GetUserRoles(User user)
         {
-            _logger.LogInformation("Password change attempt for user: {Username}", username);
-
-            var user = await _userRepository.GetByUsernameAsync(username);
-
-            if (user == null || !user.IsActive)
+            var roles = new List<string>();
+            if (user.Role != null) 
             {
-                _logger.LogWarning("Password change failed. User {Username} not found or inactive.", username);
+                roles.Add(user.Role.Name);
+            }
+            return roles;
+        }
+
+        private bool IsNewPasswordValid(string newPassword, string username, out string error)
+        {
+            if (!PasswordValidator.IsValid(newPassword, out error))
+            {
+                _logger.Warning("Password change failed for {Username}. {Error}", username, error);
                 return false;
             }
-
-            if (!PasswordValidator.IsValid(newPassword, out var passwordError))
-            {
-                _logger.LogWarning("Password change failed for {Username}. {Error}", username, passwordError);
-                return false;
-            }
-
-            if (!user.RequiresPasswordChange)
-            {
-                bool isPasswordValid = false;
-                try
-                {
-                    if (!string.IsNullOrEmpty(oldPassword) && !string.IsNullOrEmpty(user.PasswordHash))
-                    {
-                        isPasswordValid = BCrypt.Net.BCrypt.Verify(oldPassword, user.PasswordHash);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error verifying old password for user {Username}. The hash in the database might be malformed.", username);
-                }
-
-                if (!isPasswordValid)
-                {
-                    _logger.LogWarning("Password change failed for {Username}. Invalid old password.", username);
-                    return false;
-                }
-            }
-
-            user.ChangePassword(BCrypt.Net.BCrypt.HashPassword(newPassword));
-            await _userRepository.UpdateAsync(user);
-
-            _logger.LogInformation("User {Username} successfully changed their password.", username);
             return true;
         }
 
-        private string GenerateJwtToken(User user)
+        private bool IsOldPasswordValidIfNeeded(User user, string oldPassword, string username)
         {
-            var tokenHandler = new JwtSecurityTokenHandler();
-            var jwtKey = _configuration["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key is missing");
-            var key = Encoding.ASCII.GetBytes(jwtKey);
-            
+            if (!VerifyPassword(oldPassword, user.PasswordHash, username))
+            {
+                _logger.Warning("Password change failed for {Username}. Invalid old password.", username);
+                return false;
+            }
+
+            return true;
+        }
+
+        private async Task UpdateUserPasswordAsync(User user, string newPassword)
+        {
+            user.ChangePassword(BCrypt.Net.BCrypt.HashPassword(newPassword));
+            await _userRepository.UpdateAsync(user);
+        }
+
+        private List<Claim> CreateUserClaims(User user)
+        {
             var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
@@ -146,15 +175,35 @@ namespace PRMTool.Application.Services
                 claims.Add(new Claim("RequiresPasswordChange", "true"));
             }
 
-            var tokenDescriptor = new SecurityTokenDescriptor
+            return claims;
+        }
+
+        private byte[] GetJwtSecurityKey()
+        {
+            var jwtKey = _configuration["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key is missing");
+            return Encoding.ASCII.GetBytes(jwtKey);
+        }
+
+        private SecurityTokenDescriptor CreateTokenDescriptor(List<Claim> claims, byte[] key)
+        {
+            return new SecurityTokenDescriptor
             {
                 Subject = new ClaimsIdentity(claims),
-                Expires = DateTime.UtcNow.AddMinutes(double.Parse(_configuration["Jwt:DurationInMinutes"] ?? "60")),
+                Expires = DateTime.UtcNow.AddMinutes(GetJwtExpirationMinutes()),
                 Issuer = _configuration["Jwt:Issuer"],
                 Audience = _configuration["Jwt:Audience"],
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
             };
+        }
 
+        private double GetJwtExpirationMinutes()
+        {
+            return double.TryParse(_configuration["Jwt:DurationInMinutes"], out var minutes) ? minutes : 60;
+        }
+
+        private string WriteToken(SecurityTokenDescriptor tokenDescriptor)
+        {
+            var tokenHandler = new JwtSecurityTokenHandler();
             var token = tokenHandler.CreateToken(tokenDescriptor);
             return tokenHandler.WriteToken(token);
         }

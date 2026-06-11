@@ -1,53 +1,47 @@
 using System;
 using System.Collections.Generic;
-using PRMTool.Domain.Enums;
 
 namespace PRMTool.Domain.Entities
 {
-    public class Employee
+    /// <summary>
+    /// Renamed from EMPLOYEES. Holds only resource-domain data.
+    /// Identity fields (FullName, Department) now live on the linked User entity.
+    /// </summary>
+    public class ResourceProfile
     {
         public int Id { get; private set; }
-        public string FullName { get; private set; } = string.Empty;
-        public string Department { get; private set; } = string.Empty;
-        public EmployeeStatus Status { get; private set; } = EmployeeStatus.BENCH;
-        public bool IsActive { get; private set; } = true;
-        public int? UserId { get; private set; }
+
+        /// <summary>1-to-1 → Users.Id (EMPLOYEE or MANAGER role)</summary>
+        public int UserId { get; private set; }
         public User? User { get; private set; }
+
+        /// <summary>FK → Users.Id — must be a MANAGER-role user</summary>
         public int? ManagerId { get; private set; }
         public User? Manager { get; private set; }
+
+        /// <summary>Resource-level active flag. Can be deactivated independently of user account.</summary>
+        public bool IsActive { get; private set; } = true;
+
         public DateTime CreatedAt { get; private set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; private set; } = DateTime.UtcNow;
 
-        public ICollection<EmployeeSkill> Skills { get; private set; } = new List<EmployeeSkill>();
+        public ICollection<ResourceSkill> Skills { get; private set; } = new List<ResourceSkill>();
         public ICollection<Allocation> Allocations { get; private set; } = new List<Allocation>();
+        public ICollection<Timesheet> Timesheets { get; private set; } = new List<Timesheet>();
 
-        protected Employee() { }
+        protected ResourceProfile() { }
 
-        public Employee(string fullName, string department, int? userId = null)
+        public ResourceProfile(int userId, int? managerId = null)
         {
-            FullName = fullName;
-            Department = department;
             UserId = userId;
+            ManagerId = managerId;
             CreatedAt = DateTime.UtcNow;
-            UpdatedAt = DateTime.UtcNow;
-        }
-
-        public void UpdateDetails(string fullName, string department)
-        {
-            FullName = fullName;
-            Department = department;
             UpdatedAt = DateTime.UtcNow;
         }
 
         public void AssignManager(int? managerId)
         {
             ManagerId = managerId;
-            UpdatedAt = DateTime.UtcNow;
-        }
-
-        public void SetStatus(EmployeeStatus status)
-        {
-            Status = status;
             UpdatedAt = DateTime.UtcNow;
         }
 

@@ -4,9 +4,10 @@ namespace PRMTool.Application.Helpers
 {
     public static class PasswordValidator
     {
+        private const int MaximumPasswordLength = 8;
         public static bool IsValid(string password, out string errorMessage)
         {
-            if (string.IsNullOrWhiteSpace(password) || password.Length < 8)
+            if (string.IsNullOrWhiteSpace(password) || password.Length < MaximumPasswordLength)
             {
                 errorMessage = "Password must be at least 8 characters long.";
                 return false;

@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using PRMTool.Application.DTOs;
 using PRMTool.Application.Interfaces;
 using PRMTool.Domain.Entities;
-using PRMTool.Domain.Enums;
 using PRMTool.Domain.Interfaces;
 
 namespace PRMTool.Application.Services
@@ -13,25 +12,25 @@ namespace PRMTool.Application.Services
     public class AllocationService : IAllocationService
     {
         private readonly IAllocationRepository _allocationRepository;
-        private readonly IEmployeeRepository _employeeRepository;
+        private readonly IResourceProfileRepository _profileRepository;
         private readonly IProjectRepository _projectRepository;
 
         public AllocationService(
             IAllocationRepository allocationRepository,
-            IEmployeeRepository employeeRepository,
+            IResourceProfileRepository profileRepository,
             IProjectRepository projectRepository)
         {
             _allocationRepository = allocationRepository;
-            _employeeRepository = employeeRepository;
+            _profileRepository = profileRepository;
             _projectRepository = projectRepository;
         }
 
-        public async Task<IEnumerable<AllocationDto>> GetAllActiveAsync(int? employeeId = null, int? projectId = null)
+        public async Task<IEnumerable<AllocationDto>> GetAllActiveAsync(int? resourceId = null, int? projectId = null)
         {
             var allocations = await _allocationRepository.GetAllActiveAsync();
 
-            if (employeeId.HasValue)
-                allocations = allocations.Where(a => a.EmployeeId == employeeId.Value);
+            if (resourceId.HasValue)
+                allocations = allocations.Where(a => a.ResourceId == resourceId.Value);
 
             if (projectId.HasValue)
                 allocations = allocations.Where(a => a.ProjectId == projectId.Value);
@@ -47,13 +46,13 @@ namespace PRMTool.Application.Services
 
         public async Task<IEnumerable<AllocationDto>> GetByUserIdAsync(int userId)
         {
-            var employee = await _employeeRepository.GetByUserIdAsync(userId);
-            if (employee == null)
+            var profile = await _profileRepository.GetByUserIdAsync(userId);
+            if (profile == null)
                 return Enumerable.Empty<AllocationDto>();
 
             var allocations = await _allocationRepository.GetAllActiveAsync();
             return allocations
-                .Where(a => a.EmployeeId == employee.Id)
+                .Where(a => a.ResourceId == profile.Id)
                 .Select(MapToDto);
         }
 
@@ -61,22 +60,19 @@ namespace PRMTool.Application.Services
         {
             ValidateAllocationDates(dto.FromDate, dto.ToDate);
 
-            var employee = await _employeeRepository.GetByIdAsync(dto.EmployeeId)
-                ?? throw new InvalidOperationException("Employee not found.");
+            var profile = await _profileRepository.GetByIdAsync(dto.ResourceId)
+                ?? throw new InvalidOperationException("Resource profile not found.");
 
             var project = await _projectRepository.GetByIdAsync(dto.ProjectId)
                 ?? throw new InvalidOperationException("Project not found.");
 
-            if (project.Status == ProjectStatus.COMPLETED)
+            if (project.Status?.StatusCode == "COMPLETED")
                 throw new InvalidOperationException("Cannot allocate to a completed project.");
 
-            await ValidateUtilizationLimitAsync(dto.EmployeeId, dto.UtilizationPercent, dto.FromDate, dto.ToDate);
+            await ValidateUtilisationLimitAsync(dto.ResourceId, dto.UtilisationPct, dto.FromDate, dto.ToDate);
 
-            var allocation = new Allocation(dto.EmployeeId, dto.ProjectId, dto.UtilizationPercent, dto.FromDate, dto.ToDate);
+            var allocation = new Allocation(dto.ResourceId, dto.ProjectId, dto.UtilisationPct, dto.FromDate, dto.ToDate);
             await _allocationRepository.AddAsync(allocation);
-
-            employee.SetStatus(EmployeeStatus.ALLOCATED);
-            await _employeeRepository.UpdateAsync(employee);
 
             var saved = await _allocationRepository.GetByIdAsync(allocation.Id)
                 ?? throw new InvalidOperationException("Failed to retrieve saved allocation.");
@@ -93,37 +89,28 @@ namespace PRMTool.Application.Services
             allocation.EndAllocation(today);
             await _allocationRepository.UpdateAsync(allocation);
 
-            // Recompute employee status — if no more active allocations, set to BENCH
-            var remainingActive = await _allocationRepository.GetActiveByEmployeeIdAsync(allocation.EmployeeId);
-            var employee = await _employeeRepository.GetByIdAsync(allocation.EmployeeId);
-            if (employee != null && !remainingActive.Any())
-            {
-                employee.SetStatus(EmployeeStatus.BENCH);
-                await _employeeRepository.UpdateAsync(employee);
-            }
-
             return new EndAllocationResultDto
             {
                 AllocationId = allocationId,
-                EmployeeName = allocation.Employee?.FullName ?? string.Empty,
+                ResourceName = allocation.Resource?.User?.FullName ?? string.Empty,
                 ProjectName = allocation.Project?.Name ?? string.Empty,
                 EndedOnDate = today.ToString("dd-MM-yyyy"),
-                Message = $"{allocation.Employee?.FullName} freed from {allocation.Project?.Name} as of {today:dd-MMM-yyyy}."
+                Message = $"{allocation.Resource?.User?.FullName} freed from {allocation.Project?.Name} as of {today:dd-MMM-yyyy}."
             };
         }
 
-        private async Task ValidateUtilizationLimitAsync(int employeeId, int newPercent, DateTime fromDate, DateTime toDate)
+        private async Task ValidateUtilisationLimitAsync(int resourceId, int newPercent, DateTime fromDate, DateTime toDate)
         {
             var existingAllocations = await _allocationRepository.GetAllActiveAsync();
             var overlapping = existingAllocations
-                .Where(a => a.EmployeeId == employeeId
+                .Where(a => a.ResourceId == resourceId
                     && a.FromDate.Date <= toDate.Date
                     && a.ToDate.Date >= fromDate.Date);
 
-            var currentTotal = overlapping.Sum(a => a.UtilizationPercent);
+            var currentTotal = overlapping.Sum(a => a.UtilisationPct);
             if (currentTotal + newPercent > 100)
                 throw new InvalidOperationException(
-                    $"Allocation would exceed 100% utilization. Current: {currentTotal}%, Adding: {newPercent}%.");
+                    $"Allocation would exceed 100% utilisation. Current: {currentTotal}%, Adding: {newPercent}%.");
         }
 
         private static void ValidateAllocationDates(DateTime fromDate, DateTime toDate)
@@ -137,15 +124,15 @@ namespace PRMTool.Application.Services
             return new AllocationDto
             {
                 Id = a.Id,
-                EmployeeId = a.EmployeeId,
+                ResourceId = a.ResourceId,
                 ProjectId = a.ProjectId,
-                EmployeeName = a.Employee?.FullName ?? string.Empty,
+                ResourceName = a.Resource?.User?.FullName ?? string.Empty,
                 ProjectName = a.Project?.Name ?? string.Empty,
-                UtilizationPercent = a.UtilizationPercent,
+                UtilisationPct = a.UtilisationPct,
                 FromDate = a.FromDate.ToString("dd-MM-yyyy"),
-                ToDate = a.ToDate.ToString("dd-MM-yyyy")
+                ToDate = a.ToDate.ToString("dd-MM-yyyy"),
+                IsActive = a.IsActive
             };
         }
     }
 }
-

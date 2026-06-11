@@ -4,86 +4,60 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PRMTool.Application.DTOs;
 using PRMTool.Application.Interfaces;
-using PRMTool.Domain.Enums;
 
 namespace PRMTool.API.Controllers
 {
+    /// <summary>
+    /// Manages resource profiles (employees and managers).
+    /// Route kept as /api/employees for backward compatibility with frontend.
+    /// </summary>
     [ApiController]
     [Route("api/[controller]")]
     [Authorize]
     public class EmployeesController : ControllerBase
     {
-        private readonly IEmployeeService _employeeService;
+        private readonly IResourceProfileService _resourceProfileService;
 
-        public EmployeesController(IEmployeeService employeeService)
+        public EmployeesController(IResourceProfileService resourceProfileService)
         {
-            _employeeService = employeeService;
+            _resourceProfileService = resourceProfileService;
         }
 
         [HttpGet]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> GetAll([FromQuery] string? status, [FromQuery] string? department)
+        [Authorize(Roles = "Admin,Manager")]
+        public async Task<IActionResult> GetAll()
         {
-            EmployeeStatus? statusFilter = null;
-            if (!string.IsNullOrEmpty(status) && Enum.TryParse<EmployeeStatus>(status, true, out var parsed))
-                statusFilter = parsed;
-
-            var employees = await _employeeService.GetAllAsync(statusFilter, department);
-            return Ok(employees);
+            var profiles = await _resourceProfileService.GetAllAsync();
+            return Ok(profiles);
         }
 
         [HttpGet("{id}")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> GetById(int id)
         {
-            var employee = await _employeeService.GetByIdAsync(id);
-            if (employee == null)
-                return NotFound(new { message = "Employee not found" });
+            var profile = await _resourceProfileService.GetByIdAsync(id);
+            if (profile == null)
+                return NotFound(new { message = "Resource profile not found." });
 
-            return Ok(employee);
-        }
-
-        [HttpPost]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> Create([FromBody] CreateEmployeeDto dto)
-        {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
-
-            try
-            {
-                var employee = await _employeeService.CreateAsync(dto);
-                return CreatedAtAction(nameof(GetById), new { id = employee.Id }, employee);
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-        }
-
-        [HttpPut("{id}")]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> Update(int id, [FromBody] UpdateEmployeeDto dto)
-        {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
-
-            var employee = await _employeeService.UpdateAsync(id, dto);
-            if (employee == null)
-                return NotFound(new { message = "Employee not found" });
-
-            return Ok(employee);
+            return Ok(profile);
         }
 
         [HttpPost("{id}/deactivate")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Deactivate(int id)
         {
-            var employee = await _employeeService.DeactivateAsync(id);
-            if (employee == null)
-                return NotFound(new { message = "Employee not found" });
+            try
+            {
+                var profile = await _resourceProfileService.DeactivateAsync(id);
+                if (profile == null)
+                    return NotFound(new { message = "Resource profile not found." });
 
-            return Ok(new { message = "Employee deactivated successfully", employee });
+                return Ok(new { message = "Resource deactivated successfully.", profile });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [HttpPost("assign-manager")]
@@ -95,8 +69,8 @@ namespace PRMTool.API.Controllers
 
             try
             {
-                var employee = await _employeeService.AssignManagerAsync(dto);
-                return Ok(employee);
+                var profile = await _resourceProfileService.AssignManagerAsync(dto);
+                return Ok(profile);
             }
             catch (InvalidOperationException ex)
             {
@@ -104,16 +78,16 @@ namespace PRMTool.API.Controllers
             }
         }
 
-        [HttpPost("{employeeId}/skills")]
+        [HttpPost("{resourceId}/skills")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> AddSkill(int employeeId, [FromBody] AddSkillDto dto)
+        public async Task<IActionResult> AddSkill(int resourceId, [FromBody] AddSkillDto dto)
         {
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
             try
             {
-                var skill = await _employeeService.AddSkillAsync(employeeId, dto);
+                var skill = await _resourceProfileService.AddSkillAsync(resourceId, dto);
                 return Ok(skill);
             }
             catch (InvalidOperationException ex)
@@ -122,40 +96,66 @@ namespace PRMTool.API.Controllers
             }
         }
 
-        [HttpPut("{employeeId}/skills/{skillId}")]
+        [HttpPut("{resourceId}/skills/{skillId}")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> UpdateSkillProficiency(int employeeId, int skillId, [FromBody] UpdateSkillProficiencyDto dto)
+        public async Task<IActionResult> UpdateSkillProficiency(int resourceId, int skillId, [FromBody] UpdateSkillProficiencyDto dto)
         {
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            var skill = await _employeeService.UpdateSkillProficiencyAsync(employeeId, skillId, dto);
+            var skill = await _resourceProfileService.UpdateSkillProficiencyAsync(resourceId, skillId, dto);
             if (skill == null)
-                return NotFound(new { message = "Skill not found" });
+                return NotFound(new { message = "Skill not found." });
 
             return Ok(skill);
         }
 
-        [HttpDelete("{employeeId}/skills/{skillId}")]
+        [HttpDelete("{resourceId}/skills/{skillId}")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> RemoveSkill(int employeeId, int skillId)
+        public async Task<IActionResult> RemoveSkill(int resourceId, int skillId)
         {
-            var success = await _employeeService.RemoveSkillAsync(employeeId, skillId);
+            var success = await _resourceProfileService.RemoveSkillAsync(resourceId, skillId);
             if (!success)
-                return NotFound(new { message = "Skill not found" });
+                return NotFound(new { message = "Skill not found." });
 
-            return Ok(new { message = "Skill removed successfully" });
+            return Ok(new { message = "Skill removed successfully." });
         }
 
         [HttpGet("user/{userId}")]
         [Authorize(Roles = "Employee,Manager,Admin")]
         public async Task<IActionResult> GetByUserId(int userId)
         {
-            var employee = await _employeeService.GetByUserIdAsync(userId);
-            if (employee == null)
-                return NotFound(new { message = "Employee not found for the given user ID." });
+            var profile = await _resourceProfileService.GetByUserIdAsync(userId);
+            if (profile == null)
+                return NotFound(new { message = "Resource profile not found for the given user ID." });
 
-            return Ok(employee);
+            return Ok(profile);
+        }
+
+        // ── Skill/Proficiency Lookup Endpoints ──────────────────
+
+        [HttpGet("skills")]
+        [Authorize(Roles = "Admin,Manager,Employee")]
+        public async Task<IActionResult> GetSkills()
+        {
+            var skills = await _resourceProfileService.GetSkillsAsync();
+            return Ok(skills);
+        }
+
+        [HttpGet("skill-categories")]
+        [Authorize(Roles = "Admin,Manager,Employee")]
+        public async Task<IActionResult> GetSkillCategories()
+        {
+            var categories = await _resourceProfileService.GetSkillCategoriesAsync();
+            return Ok(categories);
+        }
+
+        [HttpGet("proficiency-levels")]
+        [Authorize(Roles = "Admin,Manager,Employee")]
+        public async Task<IActionResult> GetProficiencyLevels()
+        {
+            var levels = await _resourceProfileService.GetProficiencyLevelsAsync();
+            return Ok(levels);
         }
     }
 }

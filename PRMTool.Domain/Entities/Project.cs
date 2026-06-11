@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using PRMTool.Domain.Enums;
 
 namespace PRMTool.Domain.Entities
 {
@@ -11,41 +10,48 @@ namespace PRMTool.Domain.Entities
         public string Description { get; private set; } = string.Empty;
         public DateTime StartDate { get; private set; }
         public DateTime EndDate { get; private set; }
-        public ProjectStatus Status { get; private set; } = ProjectStatus.PLANNED;
-        public int ManagerId { get; private set; }
+
+        /// <summary>FK → ProjectStatus.Id (PLANNED | ACTIVE | ON_HOLD | COMPLETED)</summary>
+        public int ProjectStatusId { get; private set; }
+        public ProjectStatus? Status { get; private set; }
+
+        /// <summary>FK → Users.Id — must be a MANAGER-role user</summary>
+        public int ManagerUserId { get; private set; }
         public User? Manager { get; private set; }
+
         public int TotalStoryPoints { get; private set; }
         public DateTime CreatedAt { get; private set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; private set; } = DateTime.UtcNow;
 
         public ICollection<Milestone> Milestones { get; private set; } = new List<Milestone>();
         public ICollection<Allocation> Allocations { get; private set; } = new List<Allocation>();
+        public ProjectHealth? Health { get; private set; }
 
         protected Project() { }
 
         public Project(string name, string description, DateTime startDate, DateTime endDate,
-            ProjectStatus status, int managerId, int totalStoryPoints)
+            int projectStatusId, int managerUserId, int totalStoryPoints)
         {
             Name = name;
             Description = description;
             StartDate = startDate;
             EndDate = endDate;
-            Status = status;
-            ManagerId = managerId;
+            ProjectStatusId = projectStatusId;
+            ManagerUserId = managerUserId;
             TotalStoryPoints = totalStoryPoints;
             CreatedAt = DateTime.UtcNow;
             UpdatedAt = DateTime.UtcNow;
         }
 
         public void UpdateDetails(string name, string description, DateTime startDate, DateTime endDate,
-            ProjectStatus status, int managerId, int totalStoryPoints)
+            int projectStatusId, int managerUserId, int totalStoryPoints)
         {
             Name = name;
             Description = description;
             StartDate = startDate;
             EndDate = endDate;
-            Status = status;
-            ManagerId = managerId;
+            ProjectStatusId = projectStatusId;
+            ManagerUserId = managerUserId;
             TotalStoryPoints = totalStoryPoints;
             UpdatedAt = DateTime.UtcNow;
         }

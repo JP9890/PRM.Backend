@@ -22,20 +22,22 @@ namespace PRMTool.Infrastructure.Repositories
         {
             var date = (asOfDate ?? DateTime.UtcNow).Date;
             return await _context.Allocations
-                .Include(a => a.Employee)
+                .Include(a => a.Resource)
+                    .ThenInclude(rp => rp!.User)
                 .Include(a => a.Project)
-                .Where(a => a.FromDate.Date <= date && a.ToDate.Date >= date)
-                .OrderBy(a => a.Employee!.FullName)
+                .Where(a => a.IsActive && a.FromDate.Date <= date && a.ToDate.Date >= date)
+                .OrderBy(a => a.Resource!.User!.FullName)
                 .ThenBy(a => a.Project!.Name)
                 .ToListAsync();
         }
 
-        public async Task<IEnumerable<Allocation>> GetActiveByEmployeeIdAsync(int employeeId, DateTime? asOfDate = null)
+        public async Task<IEnumerable<Allocation>> GetActiveByResourceIdAsync(int resourceId, DateTime? asOfDate = null)
         {
             var date = (asOfDate ?? DateTime.UtcNow).Date;
             return await _context.Allocations
                 .Include(a => a.Project)
-                .Where(a => a.EmployeeId == employeeId
+                .Where(a => a.ResourceId == resourceId
+                    && a.IsActive
                     && a.FromDate.Date <= date
                     && a.ToDate.Date >= date)
                 .ToListAsync();
@@ -45,9 +47,11 @@ namespace PRMTool.Infrastructure.Repositories
         {
             var today = DateTime.UtcNow.Date;
             return await _context.Allocations
-                .Include(a => a.Employee)
+                .Include(a => a.Resource)
+                    .ThenInclude(rp => rp!.User)
                 .Include(a => a.Project)
                 .Where(a => a.ProjectId == projectId
+                    && a.IsActive
                     && a.FromDate.Date <= today
                     && a.ToDate.Date >= today)
                 .ToListAsync();
@@ -56,7 +60,8 @@ namespace PRMTool.Infrastructure.Repositories
         public async Task<Allocation?> GetByIdAsync(int id)
         {
             return await _context.Allocations
-                .Include(a => a.Employee)
+                .Include(a => a.Resource)
+                    .ThenInclude(rp => rp!.User)
                 .Include(a => a.Project)
                 .FirstOrDefaultAsync(a => a.Id == id);
         }
@@ -74,4 +79,3 @@ namespace PRMTool.Infrastructure.Repositories
         }
     }
 }
-

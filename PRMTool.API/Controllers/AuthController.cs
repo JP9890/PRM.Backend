@@ -58,11 +58,11 @@ namespace PRMTool.API.Controllers
                 return Unauthorized(new { message = "Invalid token" });
             }
 
-            var success = await _authService.ChangePasswordAsync(username, request.OldPassword ?? string.Empty, request.NewPassword);
+            var result = await _authService.ChangePasswordAsync(username, request.OldPassword ?? string.Empty, request.NewPassword);
 
-            if (!success)
+            if (!result.Success)
             {
-                return BadRequest(new { message = "Failed to change password. Check your current password and ensure the new password meets requirements (8+ chars, uppercase, number)." });
+                return BadRequest(new { message = result.ErrorMessage });
             }
 
             return Ok(new { message = "Password changed successfully" });

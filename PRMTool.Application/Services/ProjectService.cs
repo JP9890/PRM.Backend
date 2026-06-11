@@ -48,7 +48,7 @@ namespace PRMTool.Application.Services
 
             var project = new Project(
                 dto.Name, dto.Description, dto.StartDate, dto.EndDate,
-                dto.Status, dto.ManagerId, dto.TotalStoryPoints);
+                dto.ProjectStatusId, dto.ManagerId, dto.TotalStoryPoints);
 
             await _projectRepository.AddAsync(project);
             var created = await _projectRepository.GetByIdAsync(project.Id);
@@ -70,7 +70,7 @@ namespace PRMTool.Application.Services
 
             project.UpdateDetails(
                 dto.Name, dto.Description, dto.StartDate, dto.EndDate,
-                dto.Status, dto.ManagerId, dto.TotalStoryPoints);
+                dto.ProjectStatusId, dto.ManagerId, dto.TotalStoryPoints);
 
             await _projectRepository.UpdateAsync(project);
             var updated = await _projectRepository.GetByIdAsync(id);
@@ -86,7 +86,8 @@ namespace PRMTool.Application.Services
             var existing = await _milestoneRepository.GetByProjectIdAsync(projectId);
             var sortOrder = existing.Any() ? existing.Max(m => m.SortOrder) + 1 : 1;
 
-            var milestone = new Milestone(projectId, dto.Title, dto.DueDate, dto.StoryPoints, sortOrder);
+            // milestoneStatusId: 1 = NOT_STARTED
+            var milestone = new Milestone(projectId, dto.Title, dto.DueDate, dto.StoryPoints, sortOrder, milestoneStatusId: 1);
             await _milestoneRepository.AddAsync(milestone);
             return MapMilestoneToDto(milestone);
         }
@@ -97,7 +98,7 @@ namespace PRMTool.Application.Services
             if (milestone == null || milestone.ProjectId != projectId)
                 return null;
 
-            milestone.UpdateStatus(dto.Status);
+            milestone.UpdateStatus(dto.MilestoneStatusId);
             await _milestoneRepository.UpdateAsync(milestone);
             return MapMilestoneToDto(milestone);
         }
@@ -105,7 +106,7 @@ namespace PRMTool.Application.Services
         private static ProjectDto MapToDto(Project project)
         {
             var completedSp = project.Milestones
-                .Where(m => m.Status == Domain.Enums.MilestoneStatus.DONE)
+                .Where(m => m.IsDone)
                 .Sum(m => m.StoryPoints);
 
             return new ProjectDto
@@ -115,8 +116,8 @@ namespace PRMTool.Application.Services
                 Description = project.Description,
                 StartDate = project.StartDate.ToString("dd-MM-yyyy"),
                 EndDate = project.EndDate.ToString("dd-MM-yyyy"),
-                Status = project.Status.ToString(),
-                ManagerId = project.ManagerId,
+                Status = project.Status?.StatusCode ?? string.Empty,
+                ManagerId = project.ManagerUserId,
                 ManagerName = project.Manager?.FullName,
                 TotalStoryPoints = project.TotalStoryPoints,
                 CompletedStoryPoints = completedSp,
@@ -137,7 +138,7 @@ namespace PRMTool.Application.Services
                 Title = milestone.Title,
                 DueDate = milestone.DueDate.ToString("dd-MM-yyyy"),
                 StoryPoints = milestone.StoryPoints,
-                Status = milestone.Status.ToString()
+                Status = milestone.Status?.StatusCode ?? string.Empty
             };
         }
     }

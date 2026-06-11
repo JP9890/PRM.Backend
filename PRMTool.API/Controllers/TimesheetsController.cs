@@ -18,15 +18,16 @@ namespace PRMTool.API.Controllers
             _timesheetService = timesheetService;
         }
 
-        [HttpPost("{employeeId}")]
+        /// <summary>Submit timesheet for a resource profile (resourceId = ResourceProfile.Id).</summary>
+        [HttpPost("{resourceId}")]
         [Authorize(Roles = "Employee,Admin,Manager")]
-        public async Task<IActionResult> SubmitTimesheet(int employeeId, [FromBody] SubmitTimesheetDto dto)
+        public async Task<IActionResult> SubmitTimesheet(int resourceId, [FromBody] SubmitTimesheetDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
 
             try
             {
-                var timesheet = await _timesheetService.SubmitTimesheetAsync(employeeId, dto);
+                var timesheet = await _timesheetService.SubmitTimesheetAsync(resourceId, dto);
                 return Ok(timesheet);
             }
             catch (InvalidOperationException ex)
@@ -35,25 +36,34 @@ namespace PRMTool.API.Controllers
             }
         }
 
-        [HttpGet("my/{employeeId}")]
+        /// <summary>Get my timesheets by resource profile ID.</summary>
+        [HttpGet("my/{resourceId}")]
         [Authorize(Roles = "Employee,Admin,Manager")]
-        public async Task<IActionResult> GetMyTimesheets(int employeeId)
+        public async Task<IActionResult> GetMyTimesheets(int resourceId)
         {
-            var timesheets = await _timesheetService.GetMyTimesheetsAsync(employeeId);
+            var timesheets = await _timesheetService.GetMyTimesheetsAsync(resourceId);
             return Ok(timesheets);
         }
 
+        /// <summary>Manager: Get team timesheets for a given week.</summary>
         [HttpGet("team/{managerId}")]
         [Authorize(Roles = "Manager,Admin")]
         public async Task<IActionResult> GetTeamTimesheets(int managerId, [FromQuery] string weekStart)
         {
             if (string.IsNullOrEmpty(weekStart))
-            {
-                return BadRequest("weekStart is required");
-            }
-            
+                return BadRequest("weekStart is required.");
+
             var timesheets = await _timesheetService.GetTeamTimesheetsAsync(managerId, weekStart);
             return Ok(timesheets);
+        }
+
+        /// <summary>Get the activity tag catalogue for timesheet submission dropdowns.</summary>
+        [HttpGet("activity-tags")]
+        [Authorize(Roles = "Employee,Admin,Manager")]
+        public async Task<IActionResult> GetActivityTags()
+        {
+            var tags = await _timesheetService.GetActivityTagsAsync();
+            return Ok(tags);
         }
     }
 }

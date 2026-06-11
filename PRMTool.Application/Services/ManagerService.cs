@@ -4,25 +4,24 @@ using System.Linq;
 using System.Threading.Tasks;
 using PRMTool.Application.DTOs;
 using PRMTool.Application.Interfaces;
-using PRMTool.Domain.Enums;
 using PRMTool.Domain.Interfaces;
 
 namespace PRMTool.Application.Services
 {
     public class ManagerService : IManagerService
     {
-        private readonly IEmployeeRepository _employeeRepository;
+        private readonly IResourceProfileRepository _profileRepository;
         private readonly IProjectRepository _projectRepository;
         private readonly IAllocationRepository _allocationRepository;
         private readonly ITimesheetRepository _timesheetRepository;
 
         public ManagerService(
-            IEmployeeRepository employeeRepository,
+            IResourceProfileRepository profileRepository,
             IProjectRepository projectRepository,
             IAllocationRepository allocationRepository,
             ITimesheetRepository timesheetRepository)
         {
-            _employeeRepository = employeeRepository;
+            _profileRepository = profileRepository;
             _projectRepository = projectRepository;
             _allocationRepository = allocationRepository;
             _timesheetRepository = timesheetRepository;
@@ -30,29 +29,27 @@ namespace PRMTool.Application.Services
 
         public async Task<ManagerDashboardDto> GetDashboardAsync(int managerId)
         {
-            var employees = await _employeeRepository.GetByManagerIdAsync(managerId);
+            var profiles = await _profileRepository.GetByManagerIdAsync(managerId);
 
-            var dtos = employees.Select(e =>
+            var dtos = profiles.Select(rp =>
             {
                 var now = DateTime.UtcNow;
-                var activeAllocations = e.Allocations.Where(a => a.IsActiveOn(now)).ToList();
-                var totalAlloc = e.Status == EmployeeStatus.ALLOCATED
-                    ? activeAllocations.Sum(a => a.UtilizationPercent)
-                    : 0;
+                var activeAllocations = rp.Allocations.Where(a => a.IsActiveOn(now)).ToList();
+                var totalAlloc = activeAllocations.Sum(a => a.UtilisationPct);
                 var freePercent = 100 - totalAlloc;
 
                 return new EmployeeDashboardDto
                 {
-                    Id = e.Id,
-                    Name = e.User?.FullName ?? e.FullName,
-                    Department = e.Department,
-                    Skills = string.Join(", ", e.Skills.Select(s => s.SkillName)),
+                    Id = rp.Id,
+                    Name = rp.User?.FullName ?? string.Empty,
+                    Department = rp.User?.Department ?? string.Empty,
+                    Skills = string.Join(", ", rp.Skills.Select(s => s.Skill?.Name ?? string.Empty)),
                     AllocationPercentage = totalAlloc,
                     Availability = totalAlloc == 0 ? "FULL" : $"{freePercent}% free",
                     ActiveAllocations = activeAllocations.Select(a => new EmployeeAllocationSummaryDto
                     {
                         ProjectName = a.Project?.Name ?? string.Empty,
-                        UtilizationPercent = a.UtilizationPercent,
+                        UtilizationPercent = a.UtilisationPct,
                         FromDate = a.FromDate.ToString("dd-MMM-yy"),
                         ToDate = a.ToDate.ToString("dd-MMM-yy")
                     }).ToList()
@@ -88,7 +85,7 @@ namespace PRMTool.Application.Services
         public async Task<ManagerProjectDetailDto?> GetProjectDetailAsync(int managerId, int projectId)
         {
             var project = await _projectRepository.GetByIdAsync(projectId);
-            if (project == null || project.ManagerId != managerId)
+            if (project == null || project.ManagerUserId != managerId)
                 return null;
 
             var today = DateTime.UtcNow.Date;
@@ -99,7 +96,7 @@ namespace PRMTool.Application.Services
             var riskFlags = BuildRiskFlags(milestones, activeAllocations);
 
             var completedSp = milestones
-                .Where(m => m.Status == MilestoneStatus.DONE)
+                .Where(m => m.IsDone)
                 .Sum(m => m.StoryPoints);
 
             return new ManagerProjectDetailDto
@@ -109,7 +106,7 @@ namespace PRMTool.Application.Services
                 Description = project.Description,
                 StartDate = project.StartDate.ToString("dd-MMM-yy"),
                 EndDate = project.EndDate.ToString("dd-MMM-yy"),
-                Status = project.Status.ToString(),
+                Status = project.Status?.StatusCode ?? string.Empty,
                 Health = health,
                 RiskFlags = riskFlags,
                 TotalStoryPoints = project.TotalStoryPoints,
@@ -121,15 +118,15 @@ namespace PRMTool.Application.Services
                     Title = m.Title,
                     DueDate = m.DueDate.ToString("dd-MMM-yy"),
                     StoryPoints = m.StoryPoints,
-                    Status = m.Status.ToString(),
-                    IsOverdue = m.Status != MilestoneStatus.DONE && m.DueDate.Date < today
+                    Status = m.Status?.StatusCode ?? string.Empty,
+                    IsOverdue = m.IsOverdue(today)
                 }).ToList(),
                 AllocatedResources = activeAllocations.Select(a => new ResourceAllocationDto
                 {
                     AllocationId = a.Id,
-                    EmployeeId = a.EmployeeId,
-                    EmployeeName = a.Employee?.FullName ?? string.Empty,
-                    UtilizationPercent = a.UtilizationPercent,
+                    EmployeeId = a.ResourceId,
+                    EmployeeName = a.Resource?.User?.FullName ?? string.Empty,
+                    UtilizationPercent = a.UtilisationPct,
                     FromDate = a.FromDate.ToString("dd-MMM-yy"),
                     ToDate = a.ToDate.ToString("dd-MMM-yy")
                 }).ToList()
@@ -138,26 +135,26 @@ namespace PRMTool.Application.Services
 
         public async Task<IEnumerable<EmployeeDashboardDto>> GetTeamEmployeesAsync(int managerId)
         {
-            var employees = await _employeeRepository.GetByManagerIdAsync(managerId);
+            var profiles = await _profileRepository.GetByManagerIdAsync(managerId);
             var now = DateTime.UtcNow;
 
-            return employees.Select(e =>
+            return profiles.Select(rp =>
             {
-                var activeAllocations = e.Allocations.Where(a => a.IsActiveOn(now)).ToList();
-                var totalAlloc = activeAllocations.Sum(a => a.UtilizationPercent);
+                var activeAllocations = rp.Allocations.Where(a => a.IsActiveOn(now)).ToList();
+                var totalAlloc = activeAllocations.Sum(a => a.UtilisationPct);
 
                 return new EmployeeDashboardDto
                 {
-                    Id = e.Id,
-                    Name = e.User?.FullName ?? e.FullName,
-                    Department = e.Department,
-                    Skills = string.Join(", ", e.Skills.Select(s => s.SkillName)),
+                    Id = rp.Id,
+                    Name = rp.User?.FullName ?? string.Empty,
+                    Department = rp.User?.Department ?? string.Empty,
+                    Skills = string.Join(", ", rp.Skills.Select(s => s.Skill?.Name ?? string.Empty)),
                     AllocationPercentage = totalAlloc,
                     Availability = totalAlloc == 0 ? "FULL" : $"{100 - totalAlloc}% free",
                     ActiveAllocations = activeAllocations.Select(a => new EmployeeAllocationSummaryDto
                     {
                         ProjectName = a.Project?.Name ?? string.Empty,
-                        UtilizationPercent = a.UtilizationPercent,
+                        UtilizationPercent = a.UtilisationPct,
                         FromDate = a.FromDate.ToString("dd-MMM-yy"),
                         ToDate = a.ToDate.ToString("dd-MMM-yy")
                     }).ToList()
@@ -168,9 +165,9 @@ namespace PRMTool.Application.Services
         private static string ComputeProjectHealth(IList<Domain.Entities.Milestone> milestones)
         {
             var today = DateTime.UtcNow.Date;
-            bool hasOverdue = milestones.Any(m => m.Status != MilestoneStatus.DONE && m.DueDate.Date < today);
+            bool hasOverdue = milestones.Any(m => m.IsOverdue(today));
             bool nearingDeadline = milestones.Any(m =>
-                m.Status != MilestoneStatus.DONE &&
+                !m.IsDone &&
                 m.DueDate.Date >= today &&
                 (m.DueDate.Date - today).TotalDays <= 7);
 
@@ -186,7 +183,7 @@ namespace PRMTool.Application.Services
             var today = DateTime.UtcNow.Date;
             var flags = new List<string>();
 
-            foreach (var m in milestones.Where(m => m.Status != MilestoneStatus.DONE && m.DueDate.Date < today))
+            foreach (var m in milestones.Where(m => m.IsOverdue(today)))
                 flags.Add($"✗  {m.Title} milestone is {(today - m.DueDate.Date).Days} day(s) overdue");
 
             if (!allocations.Any())
@@ -199,4 +196,3 @@ namespace PRMTool.Application.Services
         }
     }
 }
-

@@ -5,25 +5,34 @@ namespace PRMTool.Domain.Entities
     public class Allocation
     {
         public int Id { get; private set; }
-        public int EmployeeId { get; private set; }
-        public Employee? Employee { get; private set; }
+
+        /// <summary>FK → ResourceProfile.Id (renamed from EmployeeId)</summary>
+        public int ResourceId { get; private set; }
+        public ResourceProfile? Resource { get; private set; }
+
         public int ProjectId { get; private set; }
         public Project? Project { get; private set; }
-        public int UtilizationPercent { get; private set; }
+
+        /// <summary>1–100. Sum across overlapping date ranges must not exceed 100.</summary>
+        public int UtilisationPct { get; private set; }
+
         public DateTime FromDate { get; private set; }
         public DateTime ToDate { get; private set; }
+        public bool IsActive { get; private set; } = true;
+
         public DateTime CreatedAt { get; private set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; private set; } = DateTime.UtcNow;
 
         protected Allocation() { }
 
-        public Allocation(int employeeId, int projectId, int utilizationPercent, DateTime fromDate, DateTime toDate)
+        public Allocation(int resourceId, int projectId, int utilisationPct, DateTime fromDate, DateTime toDate)
         {
-            EmployeeId = employeeId;
+            ResourceId = resourceId;
             ProjectId = projectId;
-            UtilizationPercent = utilizationPercent;
+            UtilisationPct = utilisationPct;
             FromDate = fromDate;
             ToDate = toDate;
+            IsActive = true;
             CreatedAt = DateTime.UtcNow;
             UpdatedAt = DateTime.UtcNow;
         }
@@ -31,12 +40,13 @@ namespace PRMTool.Domain.Entities
         public void EndAllocation(DateTime endDate)
         {
             ToDate = endDate;
+            IsActive = false;
             UpdatedAt = DateTime.UtcNow;
         }
 
         public bool IsActiveOn(DateTime date)
         {
-            return FromDate.Date <= date.Date && ToDate.Date >= date.Date;
+            return IsActive && FromDate.Date <= date.Date && ToDate.Date >= date.Date;
         }
     }
 }

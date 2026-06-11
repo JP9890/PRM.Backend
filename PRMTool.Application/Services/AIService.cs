@@ -17,19 +17,19 @@ namespace PRMTool.Application.Services
         private readonly IConfiguration _configuration;
         private readonly HttpClient _httpClient;
         private readonly IProjectRepository _projectRepository;
-        private readonly IEmployeeRepository _employeeRepository;
+        private readonly IResourceProfileRepository _profileRepository;
         private readonly ISystemSettingRepository _settingRepository;
 
         public AIService(
             IConfiguration configuration, 
             IProjectRepository projectRepository, 
-            IEmployeeRepository employeeRepository,
+            IResourceProfileRepository profileRepository,
             ISystemSettingRepository settingRepository)
         {
             _configuration = configuration;
             _httpClient = new HttpClient();
             _projectRepository = projectRepository;
-            _employeeRepository = employeeRepository;
+            _profileRepository = profileRepository;
             _settingRepository = settingRepository;
         }
 
@@ -54,7 +54,7 @@ namespace PRMTool.Application.Services
 
             try
             {
-                var prompt = $"Analyze risk for project: {project.Name}. Milestones count: {project.Milestones.Count}. Status: {project.Status}. End Date: {project.EndDate:dd-MMM-yyyy}. Write a plain-English risk summary paragraph.";
+                var prompt = $"Analyze risk for project: {project.Name}. Milestones count: {project.Milestones.Count}. Status: {project.Status?.StatusCode}. End Date: {project.EndDate:dd-MMM-yyyy}. Write a plain-English risk summary paragraph.";
                 var requestBody = new
                 {
                     contents = new[]
@@ -91,7 +91,7 @@ namespace PRMTool.Application.Services
         {
             var apiKey = await GetApiKeyAsync();
             var project = await _projectRepository.GetByIdAsync(projectId);
-            var employee = await _employeeRepository.GetByIdAsync(employeeId);
+            var profile = await _profileRepository.GetByIdAsync(employeeId);
 
             if (string.IsNullOrEmpty(apiKey))
             {
@@ -105,7 +105,7 @@ namespace PRMTool.Application.Services
 
             try
             {
-                var prompt = $"Analyze skill match for employee: {employee?.FullName} (skills: {string.Join(", ", employee?.Skills.Select(s => s.SkillName) ?? Array.Empty<string>())}) against project: {project?.Name}. Output match percentage and reasoning as list of strings.";
+                var prompt = $"Analyze skill match for employee: {profile?.User?.FullName} (skills: {string.Join(", ", profile?.Skills.Select(s => s.Skill?.Name) ?? Array.Empty<string>())}) against project: {project?.Name}. Output match percentage and reasoning as list of strings.";
                 var requestBody = new
                 {
                     contents = new[]
@@ -137,7 +137,7 @@ namespace PRMTool.Application.Services
             return new List<string>
             {
                 "[GEMINI AI] 90% Match",
-                $"Employee {employee?.FullName} has strong proficiency in skills required by {project?.Name}."
+                $"Employee {profile?.User?.FullName} has strong proficiency in skills required by {project?.Name}."
             };
         }
 
@@ -145,24 +145,24 @@ namespace PRMTool.Application.Services
         {
             var apiKey = await GetApiKeyAsync();
             var project = await _projectRepository.GetByIdAsync(projectId);
-            var employees = await _employeeRepository.GetByManagerIdAsync(managerId);
+            var profiles = await _profileRepository.GetByManagerIdAsync(managerId);
 
             var candidateList = new List<AIMatchResultDto>();
             var now = DateTime.UtcNow;
 
-            foreach (var emp in employees)
+            foreach (var emp in profiles)
             {
                 var activeAllocations = emp.Allocations.Where(a => a.IsActiveOn(now)).ToList();
-                var currentAlloc = activeAllocations.Sum(a => a.UtilizationPercent);
+                var currentAlloc = activeAllocations.Sum(a => a.UtilisationPct);
                 var availabilityPct = 100 - currentAlloc;
                 var availabilityStatus = currentAlloc == 0 ? "FULL" : $"{availabilityPct}% free";
 
                 candidateList.Add(new AIMatchResultDto
                 {
                     EmployeeId = emp.Id,
-                    EmployeeName = emp.User?.FullName ?? emp.FullName,
-                    Department = emp.Department,
-                    SkillsMatch = string.Join(", ", emp.Skills.Select(s => s.SkillName)),
+                    EmployeeName = emp.User?.FullName ?? string.Empty,
+                    Department = emp.User?.Department ?? string.Empty,
+                    SkillsMatch = string.Join(", ", emp.Skills.Select(s => s.Skill?.Name ?? string.Empty)),
                     AvailabilityPercentage = availabilityPct,
                     AvailabilityStatus = availabilityStatus,
                     MatchReason = "Candidate has relevant skills.",
@@ -181,17 +181,17 @@ namespace PRMTool.Application.Services
 
                 foreach (var candidate in candidateList)
                 {
-                    var emp = employees.First(e => e.Id == candidate.EmployeeId);
+                    var emp = profiles.First(e => e.Id == candidate.EmployeeId);
                     var matchedSkills = new List<string>();
                     int skillOverlaps = 0;
 
                     foreach (var skill in emp.Skills)
                     {
-                        var sName = skill.SkillName.ToLower();
+                        var sName = skill.Skill?.Name?.ToLower() ?? string.Empty;
                         if (searchTerms.Any(term => sName.Contains(term) || term.Contains(sName)))
                         {
                             skillOverlaps++;
-                            matchedSkills.Add(skill.SkillName);
+                            matchedSkills.Add(skill.Skill?.Name ?? string.Empty);
                         }
                     }
 

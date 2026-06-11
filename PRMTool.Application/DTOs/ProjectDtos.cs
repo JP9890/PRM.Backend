@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using PRMTool.Domain.Enums;
+
 
 namespace PRMTool.Application.DTOs
 {
@@ -45,7 +45,7 @@ namespace PRMTool.Application.DTOs
         public DateTime EndDate { get; set; }
 
         [Required]
-        public ProjectStatus Status { get; set; }
+        public int ProjectStatusId { get; set; }
 
         [Required]
         public int ManagerId { get; set; }
@@ -68,7 +68,7 @@ namespace PRMTool.Application.DTOs
         public DateTime EndDate { get; set; }
 
         [Required]
-        public ProjectStatus Status { get; set; }
+        public int ProjectStatusId { get; set; }
 
         [Required]
         public int ManagerId { get; set; }
@@ -92,6 +92,6 @@ namespace PRMTool.Application.DTOs
     public class UpdateMilestoneStatusDto
     {
         [Required]
-        public MilestoneStatus Status { get; set; }
+        public int MilestoneStatusId { get; set; }
     }
 }

@@ -19,12 +19,12 @@ namespace PRMTool.API.Controllers
             _allocationService = allocationService;
         }
 
-        /// <summary>Admin: View all active allocations (optionally filtered).</summary>
+        /// <summary>Admin: View all active allocations (optionally filtered by resourceId or projectId).</summary>
         [HttpGet]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> GetAll([FromQuery] int? employeeId, [FromQuery] int? projectId)
+        public async Task<IActionResult> GetAll([FromQuery] int? resourceId, [FromQuery] int? projectId)
         {
-            var allocations = await _allocationService.GetAllActiveAsync(employeeId, projectId);
+            var allocations = await _allocationService.GetAllActiveAsync(resourceId, projectId);
             return Ok(allocations);
         }
 
@@ -37,7 +37,7 @@ namespace PRMTool.API.Controllers
             return Ok(allocations);
         }
 
-        /// <summary>Employee: View own allocations by userId from JWT token.</summary>
+        /// <summary>Employee: View own allocations by userId (looked up against ResourceProfile).</summary>
         [HttpGet("employee/{userId}")]
         [Authorize(Roles = "Employee,Manager,Admin")]
         public async Task<IActionResult> GetMyAllocations(int userId)

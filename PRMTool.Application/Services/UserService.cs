@@ -15,18 +15,18 @@ namespace PRMTool.Application.Services
     {
         private readonly IUserRepository _userRepository;
         private readonly IRoleRepository _roleRepository;
-        private readonly IEmployeeRepository _employeeRepository;
+        private readonly IResourceProfileRepository _profileRepository;
         private readonly ILogger<UserService> _logger;
 
         public UserService(
             IUserRepository userRepository,
             IRoleRepository roleRepository,
-            IEmployeeRepository employeeRepository,
+            IResourceProfileRepository profileRepository,
             ILogger<UserService> logger)
         {
             _userRepository = userRepository;
             _roleRepository = roleRepository;
-            _employeeRepository = employeeRepository;
+            _profileRepository = profileRepository;
             _logger = logger;
         }
 
@@ -57,20 +57,20 @@ namespace PRMTool.Application.Services
             if (existingEmail != null)
                 throw new InvalidOperationException("Email already exists.");
 
-            var role = await _roleRepository.GetByIdAsync(dto.RoleId);
-            if (role == null)
-                throw new InvalidOperationException("Role does not exist.");
+            var role = await _roleRepository.GetByIdAsync(dto.RoleId)
+                ?? throw new InvalidOperationException("Role does not exist.");
 
             string hashedPassword = BCrypt.Net.BCrypt.HashPassword(dto.Password);
-            var user = new User(dto.FullName, dto.Username, dto.Email, hashedPassword, dto.RoleId);
+            var user = new User(dto.FullName, dto.Username, dto.Email, hashedPassword, dto.RoleId, dto.Department);
             user.FlagForPasswordChange();
 
             await _userRepository.AddAsync(user);
 
-            if (role.Name == "Employee")
+            // Auto-create ResourceProfile for Manager and Employee roles
+            if (role.Name == "Manager" || role.Name == "Employee")
             {
-                var employee = new Employee(dto.FullName, "General", user.Id);
-                await _employeeRepository.AddAsync(employee);
+                var profile = new ResourceProfile(user.Id);
+                await _profileRepository.AddAsync(profile);
             }
 
             var createdUser = await _userRepository.GetByIdAsync(user.Id);
@@ -87,11 +87,10 @@ namespace PRMTool.Application.Services
             if (existingEmail != null && existingEmail.Id != id)
                 throw new InvalidOperationException("Email already in use by another account.");
 
-            var role = await _roleRepository.GetByIdAsync(dto.RoleId);
-            if (role == null)
-                throw new InvalidOperationException("Role does not exist.");
+            var role = await _roleRepository.GetByIdAsync(dto.RoleId)
+                ?? throw new InvalidOperationException("Role does not exist.");
 
-            user.UpdateDetails(dto.FullName, dto.Email, dto.RoleId, dto.IsActive);
+            user.UpdateDetails(dto.FullName, dto.Email, dto.RoleId, dto.IsActive, dto.Department);
             await _userRepository.UpdateAsync(user);
 
             var updatedUser = await _userRepository.GetByIdAsync(user.Id);
@@ -118,11 +117,11 @@ namespace PRMTool.Application.Services
             user.Deactivate();
             await _userRepository.UpdateAsync(user);
 
-            var employee = await _employeeRepository.GetByUserIdAsync(id);
-            if (employee != null)
+            var profile = await _profileRepository.GetByUserIdAsync(id);
+            if (profile != null)
             {
-                employee.Deactivate();
-                await _employeeRepository.UpdateAsync(employee);
+                profile.Deactivate();
+                await _profileRepository.UpdateAsync(profile);
             }
 
             return true;
@@ -137,11 +136,11 @@ namespace PRMTool.Application.Services
             user.Activate();
             await _userRepository.UpdateAsync(user);
 
-            var employee = await _employeeRepository.GetByUserIdAsync(id);
-            if (employee != null)
+            var profile = await _profileRepository.GetByUserIdAsync(id);
+            if (profile != null)
             {
-                employee.Reactivate();
-                await _employeeRepository.UpdateAsync(employee);
+                profile.Reactivate();
+                await _profileRepository.UpdateAsync(profile);
             }
 
             return true;
@@ -169,6 +168,7 @@ namespace PRMTool.Application.Services
                 FullName = user.FullName,
                 Username = user.Username,
                 Email = user.Email,
+                Department = user.Department,
                 IsActive = user.IsActive,
                 RoleId = user.RoleId,
                 RoleName = user.Role?.Name

@@ -12,46 +12,56 @@ namespace PRMTool.Application.Services
     public class TimesheetService : ITimesheetService
     {
         private readonly ITimesheetRepository _timesheetRepository;
-        private readonly IEmployeeRepository _employeeRepository;
+        private readonly IResourceProfileRepository _profileRepository;
+        private readonly IActivityTagRepository _activityTagRepository;
 
-        public TimesheetService(ITimesheetRepository timesheetRepository, IEmployeeRepository employeeRepository)
+        public TimesheetService(
+            ITimesheetRepository timesheetRepository,
+            IResourceProfileRepository profileRepository,
+            IActivityTagRepository activityTagRepository)
         {
             _timesheetRepository = timesheetRepository;
-            _employeeRepository = employeeRepository;
+            _profileRepository = profileRepository;
+            _activityTagRepository = activityTagRepository;
         }
 
-        public async Task<TimesheetDto> SubmitTimesheetAsync(int employeeId, SubmitTimesheetDto dto)
+        public async Task<TimesheetDto> SubmitTimesheetAsync(int resourceId, SubmitTimesheetDto dto)
         {
-            var employee = await _employeeRepository.GetByIdAsync(employeeId);
-            if (employee == null)
-                throw new InvalidOperationException("Employee not found");
+            var profile = await _profileRepository.GetByIdAsync(resourceId)
+                ?? throw new InvalidOperationException("Resource profile not found.");
 
-            var existing = await _timesheetRepository.GetByEmployeeAndWeekAsync(employeeId, dto.WeekStartDate);
+            var existing = await _timesheetRepository.GetByResourceAndWeekAsync(resourceId, dto.WeekStartDate);
             if (existing != null)
-                throw new InvalidOperationException("Timesheet already submitted for this week");
+                throw new InvalidOperationException("Timesheet already submitted for this week.");
 
-            var timesheet = new Timesheet
+            var weekStart = DateTime.Parse(dto.WeekStartDate);
+            var totalHours = dto.Entries.Sum(e => e.HoursWorked);
+
+            // StatusId 1 = SUBMITTED
+            var timesheet = new Timesheet(resourceId, timesheetStatusId: 1, weekStart, totalHours);
+
+            foreach (var entryDto in dto.Entries)
             {
-                EmployeeId = employeeId,
-                WeekStartDate = DateTime.Parse(dto.WeekStartDate),
-                Status = "SUBMITTED",
-                Entries = dto.Entries.Select(e => new TimesheetEntry
-                {
-                    ProjectId = e.ProjectId,
-                    HoursWorked = e.HoursWorked,
-                    ActivityTags = e.ActivityTags ?? string.Empty
-                }).ToList()
-            };
+                var entry = new TimesheetEntry(0, entryDto.ProjectId, entryDto.HoursWorked);
+
+                foreach (var tagId in entryDto.ActivityTagIds)
+                    entry.ActivityTags.Add(new TimesheetActivityTag(0, tagId));
+
+                if (!string.IsNullOrWhiteSpace(entryDto.CustomTag))
+                    entry.ActivityTags.Add(new TimesheetActivityTag(0, null, entryDto.CustomTag));
+
+                timesheet.Entries.Add(entry);
+            }
 
             await _timesheetRepository.AddAsync(timesheet);
 
             var created = await _timesheetRepository.GetByIdAsync(timesheet.Id);
-            return MapToDto(created);
+            return MapToDto(created!);
         }
 
-        public async Task<IEnumerable<TimesheetDto>> GetMyTimesheetsAsync(int employeeId)
+        public async Task<IEnumerable<TimesheetDto>> GetMyTimesheetsAsync(int resourceId)
         {
-            var timesheets = await _timesheetRepository.GetByEmployeeIdAsync(employeeId);
+            var timesheets = await _timesheetRepository.GetByResourceIdAsync(resourceId);
             return timesheets.Select(MapToDto);
         }
 
@@ -61,16 +71,27 @@ namespace PRMTool.Application.Services
             return timesheets.Select(MapToDto);
         }
 
+        public async Task<IEnumerable<ActivityTagDto>> GetActivityTagsAsync()
+        {
+            var tags = await _activityTagRepository.GetAllAsync();
+            return tags.Select(t => new ActivityTagDto
+            {
+                Id = t.Id,
+                TagName = t.TagName,
+                DisplayLabel = t.DisplayLabel
+            });
+        }
+
         private static TimesheetDto MapToDto(Timesheet t)
         {
             return new TimesheetDto
             {
                 Id = t.Id,
-                EmployeeId = t.EmployeeId,
-                EmployeeName = t.Employee?.FullName ?? "Unknown",
+                ResourceId = t.ResourceId,
+                ResourceName = t.Resource?.User?.FullName ?? "Unknown",
                 WeekStartDate = t.WeekStartDate.ToString("yyyy-MM-dd"),
-                Status = t.Status,
-                TotalHours = t.Entries?.Sum(e => e.HoursWorked) ?? 0,
+                Status = t.TimesheetStatus?.StatusCode ?? string.Empty,
+                TotalHours = t.TotalHours,
                 Entries = t.Entries?.Select(e => new TimesheetEntryDto
                 {
                     Id = e.Id,
@@ -78,6 +99,9 @@ namespace PRMTool.Application.Services
                     ProjectName = e.Project?.Name ?? "Unknown",
                     HoursWorked = e.HoursWorked,
                     ActivityTags = e.ActivityTags
+                        .Select(at => at.ActivityTag?.TagName ?? at.CustomTag ?? string.Empty)
+                        .Where(s => !string.IsNullOrWhiteSpace(s))
+                        .ToList()
                 }).ToList() ?? new List<TimesheetEntryDto>()
             };
         }

@@ -9,8 +9,13 @@ using PRMTool.Domain.Interfaces;
 using PRMTool.Infrastructure.Repositories;
 using PRMTool.Application.Interfaces;
 using PRMTool.Application.Services;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure Serilog
+builder.Host.UseSerilog((context, configuration) =>
+    configuration.ReadFrom.Configuration(context.Configuration));
 
 // Add services to the container.
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -56,8 +61,10 @@ builder.Services.AddSwaggerGen(c =>
 // Register Repositories
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
-builder.Services.AddScoped<IEmployeeRepository, EmployeeRepository>();
-builder.Services.AddScoped<IEmployeeSkillRepository, EmployeeSkillRepository>();
+builder.Services.AddScoped<IResourceProfileRepository, ResourceProfileRepository>();
+builder.Services.AddScoped<IResourceSkillRepository, ResourceSkillRepository>();
+builder.Services.AddScoped<ISkillRepository, SkillRepository>();
+builder.Services.AddScoped<IActivityTagRepository, ActivityTagRepository>();
 builder.Services.AddScoped<IProjectRepository, ProjectRepository>();
 builder.Services.AddScoped<IMilestoneRepository, MilestoneRepository>();
 builder.Services.AddScoped<IAllocationRepository, AllocationRepository>();
@@ -68,7 +75,7 @@ builder.Services.AddScoped<ITimesheetRepository, TimesheetRepository>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IRoleService, RoleService>();
-builder.Services.AddScoped<IEmployeeService, EmployeeService>();
+builder.Services.AddScoped<IResourceProfileService, ResourceProfileService>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<IAllocationService, AllocationService>();
 builder.Services.AddScoped<ISystemSettingsService, SystemSettingsService>();
@@ -127,7 +134,7 @@ app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "PRMTool API v1");
-    c.RoutePrefix = "swagger"; // available at /swagger
+    c.RoutePrefix = "swagger";
 });
 
 app.UseHttpsRedirection();

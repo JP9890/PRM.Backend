@@ -20,16 +20,20 @@ namespace PRMTool.Infrastructure.Repositories
         public async Task<Project?> GetByIdAsync(int id)
         {
             return await _context.Projects
+                .Include(p => p.Status)
                 .Include(p => p.Manager)
                 .Include(p => p.Milestones)
+                    .ThenInclude(m => m.Status)
                 .FirstOrDefaultAsync(p => p.Id == id);
         }
 
         public async Task<IEnumerable<Project>> GetAllAsync()
         {
             return await _context.Projects
+                .Include(p => p.Status)
                 .Include(p => p.Manager)
                 .Include(p => p.Milestones)
+                    .ThenInclude(m => m.Status)
                 .OrderBy(p => p.Name)
                 .ToListAsync();
         }
@@ -37,9 +41,11 @@ namespace PRMTool.Infrastructure.Repositories
         public async Task<IEnumerable<Project>> GetByManagerIdAsync(int managerId)
         {
             return await _context.Projects
+                .Include(p => p.Status)
                 .Include(p => p.Manager)
                 .Include(p => p.Milestones)
-                .Where(p => p.ManagerId == managerId)
+                    .ThenInclude(m => m.Status)
+                .Where(p => p.ManagerUserId == managerId)
                 .OrderBy(p => p.Name)
                 .ToListAsync();
         }
