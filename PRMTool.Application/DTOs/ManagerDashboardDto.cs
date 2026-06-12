@@ -18,7 +18,7 @@ namespace PRMTool.Application.DTOs
         public string Department { get; set; } = string.Empty;
         public string Skills { get; set; } = string.Empty; // Comma-separated
         public int AllocationPercentage { get; set; }
-        public string Availability { get; set; } = string.Empty; // e.g., "FULL", "25% free"
+        public string Availability { get; set; } = string.Empty;
         public string RecentActivityTags { get; set; } = string.Empty;
         public IEnumerable<EmployeeAllocationSummaryDto> ActiveAllocations { get; set; } = new List<EmployeeAllocationSummaryDto>();
     }

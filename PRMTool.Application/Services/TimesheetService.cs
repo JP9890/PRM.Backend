@@ -105,5 +105,27 @@ namespace PRMTool.Application.Services
                 }).ToList() ?? new List<TimesheetEntryDto>()
             };
         }
+        public async Task AuditMissedTimesheetsAsync()
+        {
+            var today = DateTime.UtcNow.Date;
+            if (today.DayOfWeek != DayOfWeek.Monday && today.DayOfWeek != DayOfWeek.Tuesday)
+                return;
+
+            var lastWeekStart = today.AddDays(-(int)today.DayOfWeek + (int)DayOfWeek.Monday).AddDays(-7);
+            
+            var allProfiles = await _profileRepository.GetAllAsync();
+            foreach (var profile in allProfiles)
+            {
+                if (!profile.IsActive) continue;
+
+                var existing = await _timesheetRepository.GetByResourceAndWeekAsync(profile.Id, lastWeekStart.ToString("yyyy-MM-dd"));
+                if (existing == null)
+                {
+                    // StatusId 2 = MISSED
+                    var missedTimesheet = new Timesheet(profile.Id, timesheetStatusId: 2, lastWeekStart, 0);
+                    await _timesheetRepository.AddAsync(missedTimesheet);
+                }
+            }
+        }
     }
 }

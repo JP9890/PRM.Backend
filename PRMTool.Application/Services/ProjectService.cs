@@ -141,5 +141,19 @@ namespace PRMTool.Application.Services
                 Status = milestone.Status?.StatusCode ?? string.Empty
             };
         }
+        public async Task RecomputeAllProjectHealthAsync()
+        {
+            var projects = await _projectRepository.GetAllAsync();
+            foreach (var project in projects)
+            {
+                var milestones = await _milestoneRepository.GetByProjectIdAsync(project.Id);
+                var today = DateTime.UtcNow.Date;
+                var hasOverdue = milestones.Any(m => m.DueDate < today && m.Status?.StatusCode != "DONE");
+                
+                // For now, we don't have a direct "Health" field on Project entity to update in DB
+                // Health is dynamically calculated in ManagerService. 
+                // But if we ever add a Health field or Flags table, this is where we'd update it.
+            }
+        }
     }
 }

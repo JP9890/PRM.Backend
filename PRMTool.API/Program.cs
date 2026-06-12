@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using PRMTool.API.HostedServices;
 using PRMTool.Infrastructure.Data;
 using PRMTool.Domain.Interfaces;
 using PRMTool.Infrastructure.Repositories;
@@ -82,6 +83,9 @@ builder.Services.AddScoped<ISystemSettingsService, SystemSettingsService>();
 builder.Services.AddScoped<ITimesheetService, TimesheetService>();
 builder.Services.AddScoped<IManagerService, ManagerService>();
 builder.Services.AddScoped<IAIService, AIService>();
+
+// Register Background Scheduler
+builder.Services.AddHostedService<PrmBackgroundScheduler>();
 
 // Configure Authentication & JWT
 var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key is missing");

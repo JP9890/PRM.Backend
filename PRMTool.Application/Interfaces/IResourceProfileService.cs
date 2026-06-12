@@ -16,6 +16,7 @@ namespace PRMTool.Application.Interfaces
         Task<ResourceSkillDto> AddSkillAsync(int resourceProfileId, AddSkillDto dto);
         Task<ResourceSkillDto?> UpdateSkillProficiencyAsync(int resourceProfileId, int skillId, UpdateSkillProficiencyDto dto);
         Task<bool> RemoveSkillAsync(int resourceProfileId, int skillId);
+        Task RecomputeAllUtilisationAsync();
 
         // Lookups
         Task<IEnumerable<SkillLookupDto>> GetSkillsAsync();

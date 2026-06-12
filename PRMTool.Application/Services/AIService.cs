@@ -27,7 +27,10 @@ namespace PRMTool.Application.Services
             ISystemSettingRepository settingRepository)
         {
             _configuration = configuration;
-            _httpClient = new HttpClient();
+            
+            var handler = new HttpClientHandler { UseProxy = false };
+            _httpClient = new HttpClient(handler);
+            
             _projectRepository = projectRepository;
             _profileRepository = profileRepository;
             _settingRepository = settingRepository;
@@ -37,6 +40,19 @@ namespace PRMTool.Application.Services
         {
             var setting = await _settingRepository.GetByKeyAsync("LlmApiKey");
             return setting?.Value ?? string.Empty;
+        }
+
+        private async Task<ILLMProvider> GetLLMProviderAsync()
+        {
+            var providerSetting = await _settingRepository.GetByKeyAsync("LlmProvider");
+            string providerName = providerSetting?.Value?.ToLower() ?? "gemini";
+
+            return providerName switch
+            {
+                "gemma" => new PRMTool.Application.Services.LLMProviders.GemmaProvider(_httpClient, _configuration),
+                "groq" => new PRMTool.Application.Services.LLMProviders.GroqProvider(_httpClient),
+                _ => new PRMTool.Application.Services.LLMProviders.GeminiProvider(_httpClient)
+            };
         }
 
         public async Task<string> GetRiskSummaryAsync(int projectId)
@@ -55,31 +71,11 @@ namespace PRMTool.Application.Services
             try
             {
                 var prompt = $"Analyze risk for project: {project.Name}. Milestones count: {project.Milestones.Count}. Status: {project.Status?.StatusCode}. End Date: {project.EndDate:dd-MMM-yyyy}. Write a plain-English risk summary paragraph.";
-                var requestBody = new
-                {
-                    contents = new[]
-                    {
-                        new { parts = new[] { new { text = prompt } } }
-                    }
-                };
-
-                var jsonPayload = JsonSerializer.Serialize(requestBody);
-                var httpContent = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
-
-                var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={apiKey}";
-                var response = await _httpClient.PostAsync(url, httpContent);
-                if (response.IsSuccessStatusCode)
-                {
-                    var responseJson = await response.Content.ReadAsStringAsync();
-                    using var doc = JsonDocument.Parse(responseJson);
-                    return doc.RootElement
-                        .GetProperty("candidates")[0]
-                        .GetProperty("content")
-                        .GetProperty("parts")[0]
-                        .GetProperty("text")
-                        .GetString() ?? "[GEMINI AI] No response text.";
-                }
-                return "[GEMINI AI] Failed to generate content from Gemini API.";
+                
+                var provider = await GetLLMProviderAsync();
+                var responseText = await provider.GenerateTextAsync(prompt, apiKey);
+                
+                return string.IsNullOrWhiteSpace(responseText) ? "[AI] No response text." : responseText;
             }
             catch (Exception ex)
             {
@@ -106,31 +102,11 @@ namespace PRMTool.Application.Services
             try
             {
                 var prompt = $"Analyze skill match for employee: {profile?.User?.FullName} (skills: {string.Join(", ", profile?.Skills.Select(s => s.Skill?.Name) ?? Array.Empty<string>())}) against project: {project?.Name}. Output match percentage and reasoning as list of strings.";
-                var requestBody = new
-                {
-                    contents = new[]
-                    {
-                        new { parts = new[] { new { text = prompt } } }
-                    }
-                };
-
-                var jsonPayload = JsonSerializer.Serialize(requestBody);
-                var httpContent = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
-
-                var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={apiKey}";
-                var response = await _httpClient.PostAsync(url, httpContent);
-                if (response.IsSuccessStatusCode)
-                {
-                    var responseJson = await response.Content.ReadAsStringAsync();
-                    using var doc = JsonDocument.Parse(responseJson);
-                    var text = doc.RootElement
-                        .GetProperty("candidates")[0]
-                        .GetProperty("content")
-                        .GetProperty("parts")[0]
-                        .GetProperty("text")
-                        .GetString() ?? "";
-                    return new List<string> { "[GEMINI AI] Match details:", text };
-                }
+                
+                var provider = await GetLLMProviderAsync();
+                var text = await provider.GenerateTextAsync(prompt, apiKey);
+                
+                return new List<string> { "[AI] Match details:", text };
             }
             catch {}
 
@@ -215,7 +191,7 @@ namespace PRMTool.Application.Services
                 return candidateList.OrderByDescending(c => c.MatchingScore);
             }
 
-            // GEMINI LLM CALL
+            // LLM CALL
             try
             {
                 var promptBuilder = new StringBuilder();
@@ -239,30 +215,11 @@ namespace PRMTool.Application.Services
                 promptBuilder.AppendLine();
                 promptBuilder.AppendLine("Ensure valid JSON syntax.");
 
-                var requestBody = new
+                var provider = await GetLLMProviderAsync();
+                var textResponse = await provider.GenerateTextAsync(promptBuilder.ToString(), apiKey);
+
+                if (!string.IsNullOrWhiteSpace(textResponse))
                 {
-                    contents = new[]
-                    {
-                        new { parts = new[] { new { text = promptBuilder.ToString() } } }
-                    }
-                };
-
-                var jsonPayload = JsonSerializer.Serialize(requestBody);
-                var httpContent = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
-
-                var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={apiKey}";
-                var response = await _httpClient.PostAsync(url, httpContent);
-
-                if (response.IsSuccessStatusCode)
-                {
-                    var responseJson = await response.Content.ReadAsStringAsync();
-                    using var doc = JsonDocument.Parse(responseJson);
-                    var textResponse = doc.RootElement
-                        .GetProperty("candidates")[0]
-                        .GetProperty("content")
-                        .GetProperty("parts")[0]
-                        .GetProperty("text")
-                        .GetString() ?? string.Empty;
 
                     textResponse = textResponse.Trim();
                     if (textResponse.StartsWith("```json"))

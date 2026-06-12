@@ -39,8 +39,8 @@ namespace PRMTool.Application.Services
 
         public async Task UpdateLlmProviderAsync(string provider)
         {
-            if (provider != "Gemini" && provider != "Groq")
-                throw new InvalidOperationException("Provider must be Gemini or Groq.");
+            if (provider != "Gemini" && provider != "Groq" && provider != "gemma")
+                throw new InvalidOperationException("Provider must be Gemini, Groq, or gemma.");
 
             await SetValueAsync("LlmProvider", provider);
         }

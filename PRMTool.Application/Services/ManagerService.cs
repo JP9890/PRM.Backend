@@ -50,8 +50,8 @@ namespace PRMTool.Application.Services
                     {
                         ProjectName = a.Project?.Name ?? string.Empty,
                         UtilizationPercent = a.UtilisationPct,
-                        FromDate = a.FromDate.ToString("dd-MMM-yy"),
-                        ToDate = a.ToDate.ToString("dd-MMM-yy")
+                        FromDate = a.FromDate.ToString("dd/MM/yyyy"),
+                        ToDate = a.ToDate.ToString("dd/MM/yyyy")
                     }).ToList()
                 };
             }).ToList();
@@ -76,7 +76,7 @@ namespace PRMTool.Application.Services
                 {
                     Id = p.Id,
                     Name = p.Name,
-                    EndDate = p.EndDate.ToString("dd-MMM-yy"),
+                    EndDate = p.EndDate.ToString("dd/MM/yyyy"),
                     Health = health
                 };
             }).ToList();
@@ -104,8 +104,8 @@ namespace PRMTool.Application.Services
                 Id = project.Id,
                 Name = project.Name,
                 Description = project.Description,
-                StartDate = project.StartDate.ToString("dd-MMM-yy"),
-                EndDate = project.EndDate.ToString("dd-MMM-yy"),
+                StartDate = project.StartDate.ToString("dd/MM/yyyy"),
+                EndDate = project.EndDate.ToString("dd/MM/yyyy"),
                 Status = project.Status?.StatusCode ?? string.Empty,
                 Health = health,
                 RiskFlags = riskFlags,
@@ -116,7 +116,7 @@ namespace PRMTool.Application.Services
                     Id = m.Id,
                     SortOrder = m.SortOrder,
                     Title = m.Title,
-                    DueDate = m.DueDate.ToString("dd-MMM-yy"),
+                    DueDate = m.DueDate.ToString("dd/MM/yyyy"),
                     StoryPoints = m.StoryPoints,
                     Status = m.Status?.StatusCode ?? string.Empty,
                     IsOverdue = m.IsOverdue(today)
@@ -127,8 +127,8 @@ namespace PRMTool.Application.Services
                     EmployeeId = a.ResourceId,
                     EmployeeName = a.Resource?.User?.FullName ?? string.Empty,
                     UtilizationPercent = a.UtilisationPct,
-                    FromDate = a.FromDate.ToString("dd-MMM-yy"),
-                    ToDate = a.ToDate.ToString("dd-MMM-yy")
+                    FromDate = a.FromDate.ToString("dd/MM/yyyy"),
+                    ToDate = a.ToDate.ToString("dd/MM/yyyy")
                 }).ToList()
             };
         }
@@ -155,8 +155,8 @@ namespace PRMTool.Application.Services
                     {
                         ProjectName = a.Project?.Name ?? string.Empty,
                         UtilizationPercent = a.UtilisationPct,
-                        FromDate = a.FromDate.ToString("dd-MMM-yy"),
-                        ToDate = a.ToDate.ToString("dd-MMM-yy")
+                        FromDate = a.FromDate.ToString("dd/MM/yyyy"),
+                        ToDate = a.ToDate.ToString("dd/MM/yyyy")
                     }).ToList()
                 };
             }).ToList();
@@ -171,9 +171,9 @@ namespace PRMTool.Application.Services
                 m.DueDate.Date >= today &&
                 (m.DueDate.Date - today).TotalDays <= 7);
 
-            if (hasOverdue) return "🔴 AT RISK";
-            if (nearingDeadline) return "🟡 ATTENTION";
-            return "🟢 ON TRACK";
+            if (hasOverdue) return "AT RISK";
+            if (nearingDeadline) return "ATTENTION";
+            return "ON TRACK";
         }
 
         private static IEnumerable<string> BuildRiskFlags(
@@ -184,13 +184,13 @@ namespace PRMTool.Application.Services
             var flags = new List<string>();
 
             foreach (var m in milestones.Where(m => m.IsOverdue(today)))
-                flags.Add($"✗  {m.Title} milestone is {(today - m.DueDate.Date).Days} day(s) overdue");
+                flags.Add($"  {m.Title} milestone is {(today - m.DueDate.Date).Days} day(s) overdue");
 
             if (!allocations.Any())
-                flags.Add("✗  No resources currently allocated to this project");
+                flags.Add("No resources currently allocated to this project");
 
             if (!flags.Any())
-                flags.Add("✓  Resources are correctly allocated");
+                flags.Add("Resources are correctly allocated");
 
             return flags;
         }

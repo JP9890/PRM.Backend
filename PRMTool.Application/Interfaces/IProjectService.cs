@@ -12,5 +12,6 @@ namespace PRMTool.Application.Interfaces
         Task<ProjectDto?> UpdateAsync(int id, UpdateProjectDto dto);
         Task<MilestoneDto> AddMilestoneAsync(int projectId, CreateMilestoneDto dto);
         Task<MilestoneDto?> UpdateMilestoneStatusAsync(int projectId, int milestoneId, UpdateMilestoneStatusDto dto);
+        Task RecomputeAllProjectHealthAsync();
     }
 }

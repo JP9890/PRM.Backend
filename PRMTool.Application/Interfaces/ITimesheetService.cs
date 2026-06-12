@@ -9,6 +9,7 @@ namespace PRMTool.Application.Interfaces
         Task<TimesheetDto> SubmitTimesheetAsync(int resourceId, SubmitTimesheetDto dto);
         Task<IEnumerable<TimesheetDto>> GetMyTimesheetsAsync(int resourceId);
         Task<IEnumerable<TimesheetDto>> GetTeamTimesheetsAsync(int managerId, string weekStart);
+        Task AuditMissedTimesheetsAsync();
         Task<IEnumerable<ActivityTagDto>> GetActivityTagsAsync();
     }
 }

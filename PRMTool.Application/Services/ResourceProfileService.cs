@@ -249,5 +249,11 @@ namespace PRMTool.Application.Services
             var reloaded = await _skillRepository.GetByIdAsync(rs.Id) ?? rs;
             return MapSkillToDto(reloaded);
         }
+        public Task RecomputeAllUtilisationAsync()
+        {
+            // In the updated schema, Utilisation and Status are dynamically computed
+            // from the active Allocations at runtime. No database update is needed.
+            return Task.CompletedTask;
+        }
     }
 }
