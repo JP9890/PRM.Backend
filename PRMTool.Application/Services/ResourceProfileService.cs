@@ -112,15 +112,59 @@ namespace PRMTool.Application.Services
             return await MapToDtoAsync(profile);
         }
 
+        public async Task<ResourceProfileDto?> UpdateEmployeeAsync(int id, UpdateEmployeeBasicDto dto)
+        {
+            var profile = await _profileRepository.GetByIdAsync(id);
+            if (profile == null)
+                return null;
+
+            if (profile.UserId > 0)
+            {
+                var user = await _userRepository.GetByIdAsync(profile.UserId);
+                if (user != null)
+                {
+                    user.UpdateDetails(dto.FullName, user.Email, user.RoleId, user.IsActive, dto.Department);
+                    await _userRepository.UpdateAsync(user);
+                }
+            }
+
+            return await MapToDtoAsync(profile);
+        }
+
         public async Task<ResourceSkillDto> AddSkillAsync(int resourceProfileId, AddSkillDto dto)
         {
             var profile = await _profileRepository.GetByIdAsync(resourceProfileId)
                 ?? throw new InvalidOperationException("Resource profile not found.");
 
-            var skill = await _skillLookupRepository.GetByIdAsync(dto.SkillId)
-                ?? throw new InvalidOperationException("Skill not found in catalogue.");
+            if (string.IsNullOrWhiteSpace(dto.SkillName))
+                throw new InvalidOperationException("Skill name is required.");
 
-            var resourceSkill = new ResourceSkill(resourceProfileId, dto.SkillId, dto.ProficiencyLevelId);
+            var skillName = dto.SkillName.Trim();
+            var skill = await _skillLookupRepository.GetByNameAsync(skillName);
+            int skillId = 0;
+
+            if (skill != null)
+            {
+                skillId = skill.Id;
+            }
+            else
+            {
+                // Default new skills to Category "Other" (Id = 5)
+                var newSkill = new Skill(5, skillName);
+                await _skillLookupRepository.AddAsync(newSkill);
+                skillId = newSkill.Id;
+            }
+
+            var existingSkills = await _skillRepository.GetByResourceProfileIdAsync(resourceProfileId);
+            var alreadyHasSkill = existingSkills.FirstOrDefault(s => s.SkillId == skillId);
+            if (alreadyHasSkill != null)
+            {
+                alreadyHasSkill.UpdateProficiency(dto.ProficiencyLevelId);
+                await _skillRepository.UpdateAsync(alreadyHasSkill);
+                return await MapSkillToDtoAsync(alreadyHasSkill);
+            }
+
+            var resourceSkill = new ResourceSkill(resourceProfileId, skillId, dto.ProficiencyLevelId);
             await _skillRepository.AddAsync(resourceSkill);
 
             return await MapSkillToDtoAsync(resourceSkill);
@@ -183,9 +227,7 @@ namespace PRMTool.Application.Services
             };
         }
 
-        // ─────────────────────────────────────────
-        // Private helpers
-        // ─────────────────────────────────────────
+      
 
         private async Task<int> GetTotalUtilisationAsync(int resourceProfileId)
         {
@@ -215,6 +257,7 @@ namespace PRMTool.Application.Services
                 UserId = profile.UserId,
                 FullName = profile.User?.FullName ?? string.Empty,
                 Department = profile.User?.Department,
+                RoleName = profile.User?.Role?.Name ?? string.Empty,
                 ManagerId = profile.ManagerId,
                 ManagerName = profile.Manager?.FullName,
                 IsActive = profile.IsActive,

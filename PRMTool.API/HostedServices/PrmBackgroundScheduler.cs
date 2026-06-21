@@ -54,6 +54,9 @@ namespace PRMTool.API.HostedServices
                         var projectService = scope.ServiceProvider.GetRequiredService<IProjectService>();
                         await projectService.RecomputeAllProjectHealthAsync();
 
+                        // 4. Process Timesheet Reminders and Freezes
+                        await timesheetService.ProcessTimesheetRemindersAndFreezesAsync();
+
                         _logger.LogInformation("Background sweep completed successfully. Next run in {Hours} hours.", intervalHours);
                     }
                 }

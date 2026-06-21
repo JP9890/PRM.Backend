@@ -60,8 +60,8 @@ namespace PRMTool.Tests
                 ResourceId = 1,
                 ProjectId = 1,
                 UtilisationPct = 50,
-                FromDate = new DateTime(2025, 1, 1),
-                ToDate = new DateTime(2025, 2, 1)
+                FromDate = DateTime.UtcNow.Date,
+                ToDate = DateTime.UtcNow.Date.AddDays(30)
             };
 
             _profileRepoMock.Setup(repo => repo.GetByIdAsync(1))
@@ -70,7 +70,9 @@ namespace PRMTool.Tests
             var completedStatus = TestHelper.CreateEntity<ProjectStatus>(4).SetPrivate("StatusCode", "COMPLETED");
             var completedProject = TestHelper.CreateEntity<Project>(1)
                 .SetPrivate("ProjectStatusId", 4)
-                .SetPrivate("Status", completedStatus);
+                .SetPrivate("Status", completedStatus)
+                .SetPrivate("StartDate", DateTime.UtcNow.Date.AddDays(-10))
+                .SetPrivate("EndDate", DateTime.UtcNow.Date.AddDays(40));
                 
             _projectRepoMock.Setup(repo => repo.GetByIdAsync(1))
                 .ReturnsAsync(completedProject);
@@ -92,8 +94,8 @@ namespace PRMTool.Tests
                 ResourceId = 1,
                 ProjectId = 1,
                 UtilisationPct = 60, // Trying to add 60%
-                FromDate = new DateTime(2025, 1, 1),
-                ToDate = new DateTime(2025, 2, 1)
+                FromDate = DateTime.UtcNow.Date,
+                ToDate = DateTime.UtcNow.Date.AddDays(30)
             };
 
             _profileRepoMock.Setup(repo => repo.GetByIdAsync(1))
@@ -101,7 +103,9 @@ namespace PRMTool.Tests
 
             var activeStatus = TestHelper.CreateEntity<ProjectStatus>(2).SetPrivate("StatusCode", "ACTIVE");
             var activeProject = TestHelper.CreateEntity<Project>(1)
-                .SetPrivate("Status", activeStatus);
+                .SetPrivate("Status", activeStatus)
+                .SetPrivate("StartDate", DateTime.UtcNow.Date.AddDays(-10))
+                .SetPrivate("EndDate", DateTime.UtcNow.Date.AddDays(40));
 
             _projectRepoMock.Setup(repo => repo.GetByIdAsync(1))
                 .ReturnsAsync(activeProject);
@@ -113,8 +117,8 @@ namespace PRMTool.Tests
                     .SetPrivate("ResourceId", 1)
                     .SetPrivate("ProjectId", 2)
                     .SetPrivate("UtilisationPct", 50)
-                    .SetPrivate("FromDate", new DateTime(2025, 1, 10))
-                    .SetPrivate("ToDate", new DateTime(2025, 1, 20))
+                    .SetPrivate("FromDate", DateTime.UtcNow.Date)
+                    .SetPrivate("ToDate", DateTime.UtcNow.Date.AddDays(30))
             };
             
             _allocationRepoMock.Setup(repo => repo.GetAllActiveAsync())
@@ -137,8 +141,8 @@ namespace PRMTool.Tests
                 ResourceId = 1,
                 ProjectId = 1,
                 UtilisationPct = 40,
-                FromDate = new DateTime(2025, 1, 1),
-                ToDate = new DateTime(2025, 2, 1)
+                FromDate = DateTime.UtcNow.Date,
+                ToDate = DateTime.UtcNow.Date.AddDays(30)
             };
 
             _profileRepoMock.Setup(repo => repo.GetByIdAsync(1))
@@ -146,7 +150,9 @@ namespace PRMTool.Tests
 
             var activeStatus = TestHelper.CreateEntity<ProjectStatus>(2).SetPrivate("StatusCode", "ACTIVE");
             var activeProject = TestHelper.CreateEntity<Project>(1)
-                .SetPrivate("Status", activeStatus);
+                .SetPrivate("Status", activeStatus)
+                .SetPrivate("StartDate", DateTime.UtcNow.Date.AddDays(-10))
+                .SetPrivate("EndDate", DateTime.UtcNow.Date.AddDays(40));
 
             _projectRepoMock.Setup(repo => repo.GetByIdAsync(1))
                 .ReturnsAsync(activeProject);
@@ -176,7 +182,7 @@ namespace PRMTool.Tests
             // Assert
             result.Should().NotBeNull();
             result.Id.Should().Be(100);
-            result.UtilisationPct.Should().Be(40);
+            result.UtilizationPercent.Should().Be(40);
         }
     }
 }

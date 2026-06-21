@@ -10,7 +10,7 @@ namespace PRMTool.Application.DTOs
         public int ProjectId { get; set; }
         public string ResourceName { get; set; } = string.Empty;
         public string ProjectName { get; set; } = string.Empty;
-        public int UtilisationPct { get; set; }
+        public int UtilizationPercent { get; set; }
         public string FromDate { get; set; } = string.Empty;
         public string ToDate { get; set; } = string.Empty;
         public bool IsActive { get; set; }

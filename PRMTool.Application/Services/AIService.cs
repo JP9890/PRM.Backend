@@ -70,7 +70,13 @@ namespace PRMTool.Application.Services
 
             try
             {
-                var prompt = $"Analyze risk for project: {project.Name}. Milestones count: {project.Milestones.Count}. Status: {project.Status?.StatusCode}. End Date: {project.EndDate:dd-MMM-yyyy}. Write a plain-English risk summary paragraph.";
+                var prompt = $"Analyze risk for project: {project.Name}. Milestones count: {project.Milestones.Count}. Status: {project.Status?.StatusCode}. End Date: {project.EndDate:dd-MMM-yyyy}.\n\n" +
+                             "Instructions:\n" +
+                             "1. Write a plain-English risk summary paragraph outlining key risks based on the project status and milestones count.\n" +
+                             "2. Output ONLY the risk summary paragraph itself.\n" +
+                             "3. DO NOT include any introductory or concluding text (e.g., 'Here is the summary', 'Let me know if you want adjustment', etc.).\n" +
+                             "4. DO NOT include any assumptions, notes, or lists of key assumptions.\n" +
+                             "5. Do not use markdown format.";
                 
                 var provider = await GetLLMProviderAsync();
                 var responseText = await provider.GenerateTextAsync(prompt, apiKey);
@@ -274,6 +280,132 @@ namespace PRMTool.Application.Services
             public string SkillsMatch { get; set; } = string.Empty;
             public string MatchReason { get; set; } = string.Empty;
             public string RecentActivity { get; set; } = string.Empty;
+        }
+
+        public async Task<TeamBuilderResponseDto> BuildTeamAsync(int managerId, TeamBuilderRequestDto request)
+        {
+            var apiKey = await GetApiKeyAsync();
+            var allProfiles = await _profileRepository.GetAllAsync();
+            var now = DateTime.UtcNow;
+
+            var candidatesJson = new StringBuilder();
+            foreach (var emp in allProfiles)
+            {
+                var activeAllocations = emp.Allocations.Where(a => a.IsActiveOn(now)).ToList();
+                var currentAlloc = activeAllocations.Sum(a => a.UtilisationPct);
+                var availabilityPct = 100 - currentAlloc;
+                var availabilityStatus = currentAlloc == 0 ? "FULL" : $"{availabilityPct}% free";
+                var skills = string.Join(", ", emp.Skills.Select(s => $"{s.Skill?.Name} ({s.ProficiencyLevel?.Label})"));
+                
+                candidatesJson.AppendLine($"- ID: {emp.Id}, Name: {emp.User?.FullName}, Skills: [{skills}], Availability: {availabilityStatus}");
+            }
+
+            var rolesJson = new StringBuilder();
+            if (request.Roles != null)
+            {
+                foreach (var r in request.Roles)
+                {
+                    rolesJson.AppendLine($"- Role: {r.RoleName}, Required Skill: {r.RequiredSkill}, Desired Proficiency: {r.DesiredProficiency}");
+                }
+            }
+
+            var responseDto = new TeamBuilderResponseDto();
+
+            if (string.IsNullOrEmpty(apiKey))
+            {
+                // FALLBACK MOCK LOGIC FOR TEAM BUILDER
+                var fallbackRoles = request.Roles != null && request.Roles.Any() 
+                    ? request.Roles 
+                    : new List<RoleRequirementDto> { new RoleRequirementDto { RoleName = "Developer (from prompt)", RequiredSkill = "Generic", DesiredProficiency = "Any" } };
+
+                var availableCandidates = allProfiles.ToList();
+                foreach (var r in fallbackRoles)
+                {
+                    // Find a candidate with the required skill or just any available candidate
+                    var candidate = availableCandidates.FirstOrDefault(c => 
+                        c.Skills.Any(s => s.Skill?.Name?.Contains(r.RequiredSkill, StringComparison.OrdinalIgnoreCase) == true));
+
+                    if (candidate == null)
+                        candidate = availableCandidates.FirstOrDefault();
+
+                    if (candidate != null)
+                    {
+                        availableCandidates.Remove(candidate);
+                        responseDto.Assignments.Add(new RoleAssignmentDto
+                        {
+                            EmployeeId = candidate.Id,
+                            EmployeeName = candidate.User?.FullName ?? "Unknown",
+                            MatchedRole = r.RoleName,
+                            MatchingScore = 85,
+                            MatchReason = $"[LOCAL SMART SEARCH] Assigned based on availability and basic skill match."
+                        });
+                    }
+                    else
+                    {
+                        responseDto.Gaps.Add(new RoleGapDto { RoleName = r.RoleName, GapReason = "[LOCAL SMART SEARCH] No available candidate found for this role." });
+                    }
+                }
+                return responseDto;
+            }
+
+            try
+            {
+                var promptBuilder = new StringBuilder();
+                promptBuilder.AppendLine("You are an AI Team Builder. A manager needs to staff a project team from the available candidates.");
+                
+                if (!string.IsNullOrWhiteSpace(request.Prompt))
+                {
+                    promptBuilder.AppendLine();
+                    promptBuilder.AppendLine("Here is the natural language requirement from the manager:");
+                    promptBuilder.AppendLine($"\"{request.Prompt}\"");
+                    promptBuilder.AppendLine("Determine the necessary roles from this description and match candidates to them.");
+                }
+
+                if (request.Roles != null && request.Roles.Any())
+                {
+                    promptBuilder.AppendLine();
+                    promptBuilder.AppendLine("Here are the specific structured roles required:");
+                    promptBuilder.AppendLine(rolesJson.ToString());
+                }
+
+                promptBuilder.AppendLine();
+                promptBuilder.AppendLine("Here is the pool of all available candidates in the company:");
+                promptBuilder.AppendLine(candidatesJson.ToString());
+                promptBuilder.AppendLine();
+                promptBuilder.AppendLine("Instructions:");
+                promptBuilder.AppendLine("1. Assign exactly ONE unique candidate to each needed role based on their skills and availability.");
+                promptBuilder.AppendLine("2. DO NOT double-book. A candidate can be assigned to AT MOST ONE role.");
+                promptBuilder.AppendLine("3. If a role cannot be filled (because no one has the skill, or those with the skill are unavailable, or they were already assigned to a higher priority role), explain precisely why.");
+                promptBuilder.AppendLine("4. Output STRICTLY a valid JSON object matching this schema exactly, with NO markdown formatting, no comments, no extra text:");
+                promptBuilder.AppendLine("{");
+                promptBuilder.AppendLine("  \"assignments\": [ { \"employeeId\": 1, \"employeeName\": \"John\", \"matchedRole\": \"DevOps\", \"matchingScore\": 90, \"matchReason\": \"Has skill and is full available.\" } ],");
+                promptBuilder.AppendLine("  \"gaps\": [ { \"roleName\": \"QA Tester\", \"gapReason\": \"No candidate has QA skills.\" } ]");
+                promptBuilder.AppendLine("}");
+
+                var provider = await GetLLMProviderAsync();
+                var textResponse = await provider.GenerateTextAsync(promptBuilder.ToString(), apiKey);
+
+                if (!string.IsNullOrWhiteSpace(textResponse))
+                {
+                    textResponse = textResponse.Trim();
+                    if (textResponse.StartsWith("```json")) textResponse = textResponse.Substring(7).Trim();
+                    if (textResponse.StartsWith("```")) textResponse = textResponse.Substring(3).Trim();
+                    if (textResponse.EndsWith("```")) textResponse = textResponse.Substring(0, textResponse.Length - 3).Trim();
+
+                    var parsed = JsonSerializer.Deserialize<TeamBuilderResponseDto>(textResponse, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+
+                    if (parsed != null) return parsed;
+                }
+            }
+            catch (Exception ex)
+            {
+                responseDto.Gaps.Add(new RoleGapDto { RoleName = "System Error", GapReason = $"[AI Error] {ex.Message}" });
+            }
+
+            return responseDto;
         }
     }
 }

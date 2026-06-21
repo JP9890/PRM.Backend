@@ -9,5 +9,6 @@ namespace PRMTool.Application.Interfaces
         Task<string> GetRiskSummaryAsync(int projectId);
         Task<IEnumerable<string>> GetSkillMatchAsync(int projectId, int employeeId);
         Task<IEnumerable<AIMatchResultDto>> SearchTeamResourcesAsync(int managerId, string query, int projectId);
+        Task<TeamBuilderResponseDto> BuildTeamAsync(int managerId, TeamBuilderRequestDto request);
     }
 }

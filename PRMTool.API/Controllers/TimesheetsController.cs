@@ -30,6 +30,10 @@ namespace PRMTool.API.Controllers
                 var timesheet = await _timesheetService.SubmitTimesheetAsync(resourceId, dto);
                 return Ok(timesheet);
             }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { message = ex.Message });
+            }
             catch (InvalidOperationException ex)
             {
                 return BadRequest(new { message = ex.Message });
@@ -64,6 +68,22 @@ namespace PRMTool.API.Controllers
         {
             var tags = await _timesheetService.GetActivityTagsAsync();
             return Ok(tags);
+        }
+
+        /// <summary>Manager restores timesheet submission access for a frozen employee.</summary>
+        [HttpPost("restore-access/{resourceId}")]
+        [Authorize(Roles = "Manager,Admin")]
+        public async Task<IActionResult> RestoreTimesheetAccess(int resourceId, [FromQuery] int managerId)
+        {
+            try
+            {
+                await _timesheetService.RestoreTimesheetAccessAsync(resourceId, managerId);
+                return Ok(new { message = "Timesheet access restored successfully." });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
     }
 }

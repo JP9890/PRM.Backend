@@ -71,6 +71,8 @@ builder.Services.AddScoped<IMilestoneRepository, MilestoneRepository>();
 builder.Services.AddScoped<IAllocationRepository, AllocationRepository>();
 builder.Services.AddScoped<ISystemSettingRepository, SystemSettingRepository>();
 builder.Services.AddScoped<ITimesheetRepository, TimesheetRepository>();
+builder.Services.AddScoped<ITimesheetReminderLogRepository, TimesheetReminderLogRepository>();
+builder.Services.AddScoped<IUserPermissionBlockRepository, UserPermissionBlockRepository>();
 
 // Register Services
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -83,6 +85,7 @@ builder.Services.AddScoped<ISystemSettingsService, SystemSettingsService>();
 builder.Services.AddScoped<ITimesheetService, TimesheetService>();
 builder.Services.AddScoped<IManagerService, ManagerService>();
 builder.Services.AddScoped<IAIService, AIService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
 
 // Register Background Scheduler
 builder.Services.AddHostedService<PrmBackgroundScheduler>();

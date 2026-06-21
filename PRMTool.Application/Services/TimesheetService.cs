@@ -14,21 +14,45 @@ namespace PRMTool.Application.Services
         private readonly ITimesheetRepository _timesheetRepository;
         private readonly IResourceProfileRepository _profileRepository;
         private readonly IActivityTagRepository _activityTagRepository;
+        private readonly ITimesheetReminderLogRepository _reminderLogRepository;
+        private readonly IUserPermissionBlockRepository _permissionBlockRepository;
+        private readonly IUserRepository _userRepository;
+        private readonly INotificationService _notificationService;
+
+        // Permission ID for SUBMIT_TIMESHEET (seeded as Id=7 in AppDbContext)
+        private const int SubmitTimesheetPermissionId = 7;
+        private const string SubmitTimesheetPermissionCode = "SUBMIT_TIMESHEET";
+        // Timesheet Status IDs (seeded in AppDbContext)
+        private const int StatusMissed = 2;
 
         public TimesheetService(
             ITimesheetRepository timesheetRepository,
             IResourceProfileRepository profileRepository,
-            IActivityTagRepository activityTagRepository)
+            IActivityTagRepository activityTagRepository,
+            ITimesheetReminderLogRepository reminderLogRepository,
+            IUserPermissionBlockRepository permissionBlockRepository,
+            IUserRepository userRepository,
+            INotificationService notificationService)
         {
             _timesheetRepository = timesheetRepository;
             _profileRepository = profileRepository;
             _activityTagRepository = activityTagRepository;
+            _reminderLogRepository = reminderLogRepository;
+            _permissionBlockRepository = permissionBlockRepository;
+            _userRepository = userRepository;
+            _notificationService = notificationService;
         }
 
         public async Task<TimesheetDto> SubmitTimesheetAsync(int resourceId, SubmitTimesheetDto dto)
         {
             var profile = await _profileRepository.GetByIdAsync(resourceId)
                 ?? throw new InvalidOperationException("Resource profile not found.");
+
+            // Check if the user's SUBMIT_TIMESHEET permission is blocked (account freeze)
+            var userId = profile.UserId;
+            if (await _permissionBlockRepository.IsBlockedAsync(userId, SubmitTimesheetPermissionCode))
+                throw new UnauthorizedAccessException(
+                    "Your timesheet submission access is currently suspended. Please contact your reporting manager to restore access.");
 
             var existing = await _timesheetRepository.GetByResourceAndWeekAsync(resourceId, dto.WeekStartDate);
             if (existing != null)
@@ -125,6 +149,110 @@ namespace PRMTool.Application.Services
                     var missedTimesheet = new Timesheet(profile.Id, timesheetStatusId: 2, lastWeekStart, 0);
                     await _timesheetRepository.AddAsync(missedTimesheet);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Progresses each frozen/reminded employee through the reminder lifecycle:
+        /// Remind 1 → Remind 2 → Freeze → Notify.
+        /// Safe to call multiple times per day — date comparisons prevent duplicate actions.
+        /// </summary>
+        public async Task ProcessTimesheetRemindersAndFreezesAsync()
+        {
+            var today = DateTime.UtcNow.Date;
+            var lastWeekStart = today.AddDays(-(int)today.DayOfWeek + (int)DayOfWeek.Monday).AddDays(-7);
+
+            var allProfiles = await _profileRepository.GetAllAsync();
+            foreach (var profile in allProfiles)
+            {
+                if (!profile.IsActive) continue;
+
+                // Only process employees who missed last week's timesheet
+                var missed = await _timesheetRepository.GetByResourceAndWeekAsync(
+                    profile.Id, lastWeekStart.ToString("yyyy-MM-dd"));
+                if (missed == null || missed.TimesheetStatusId != StatusMissed) continue;
+
+                var employee = profile.User;
+                if (employee == null) continue;
+
+                // Get or create the reminder log for this employee + missed week
+                var log = await _reminderLogRepository.GetByResourceAndWeekAsync(profile.Id, lastWeekStart);
+                if (log == null)
+                {
+                    log = new TimesheetReminderLog(profile.Id, lastWeekStart);
+                    await _reminderLogRepository.AddAsync(log);
+                }
+
+                // Already frozen & restored by manager — skip
+                if (log.RestoredAt.HasValue) continue;
+
+                // STEP 1: Send Reminder 1 (once, on first scheduler run detecting the miss)
+                if (!log.Reminder1SentAt.HasValue)
+                {
+                    await _notificationService.SendTimesheetReminder1Async(employee, lastWeekStart);
+                    log.MarkReminder1Sent();
+                    await _reminderLogRepository.UpdateAsync(log);
+                    continue;
+                }
+
+                // STEP 2: Send Reminder 2 (next day after Reminder 1)
+                if (!log.Reminder2SentAt.HasValue &&
+                    today > log.Reminder1SentAt.Value.Date)
+                {
+                    await _notificationService.SendTimesheetReminder2Async(employee, lastWeekStart);
+                    log.MarkReminder2Sent();
+                    await _reminderLogRepository.UpdateAsync(log);
+                    continue;
+                }
+
+                // STEP 3: Freeze (next day after Reminder 2)
+                if (!log.FrozenAt.HasValue &&
+                    log.Reminder2SentAt.HasValue &&
+                    today > log.Reminder2SentAt.Value.Date)
+                {
+                    // Block the SUBMIT_TIMESHEET permission for this user
+                    var alreadyBlocked = await _permissionBlockRepository.IsBlockedAsync(
+                        employee.Id, SubmitTimesheetPermissionCode);
+
+                    if (!alreadyBlocked)
+                        await _permissionBlockRepository.AddAsync(
+                            new UserPermissionBlock(employee.Id, SubmitTimesheetPermissionId));
+
+                    log.MarkFrozen();
+                    await _reminderLogRepository.UpdateAsync(log);
+
+                    // Notify both employee and reporting manager
+                    var manager = profile.Manager;
+                    if (manager != null)
+                        await _notificationService.SendTimesheetFreezeNotificationAsync(employee, manager, lastWeekStart);
+
+                    continue;
+                }
+
+                // STEP 4: Already frozen — do nothing, waiting for manager to restore
+            }
+        }
+
+        /// <summary>
+        /// Restores timesheet submission access for a frozen employee.
+        /// Only the reporting manager (or Admin) should call this.
+        /// </summary>
+        public async Task RestoreTimesheetAccessAsync(int resourceId, int managerId)
+        {
+            var profile = await _profileRepository.GetByIdAsync(resourceId)
+                ?? throw new InvalidOperationException("Resource profile not found.");
+
+            // Remove the permission block
+            await _permissionBlockRepository.RemoveAsync(profile.UserId, SubmitTimesheetPermissionCode);
+
+            // Update the most recent reminder log
+            var today = DateTime.UtcNow.Date;
+            var lastWeekStart = today.AddDays(-(int)today.DayOfWeek + (int)DayOfWeek.Monday).AddDays(-7);
+            var log = await _reminderLogRepository.GetByResourceAndWeekAsync(profile.Id, lastWeekStart);
+            if (log != null && log.FrozenAt.HasValue && !log.RestoredAt.HasValue)
+            {
+                log.MarkRestored(managerId);
+                await _reminderLogRepository.UpdateAsync(log);
             }
         }
     }

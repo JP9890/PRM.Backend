@@ -69,6 +69,12 @@ namespace PRMTool.Application.Services
             if (project.Status?.StatusCode == "COMPLETED")
                 throw new InvalidOperationException("Cannot allocate to a completed project.");
 
+            if (dto.FromDate.Date < DateTime.UtcNow.Date)
+                throw new InvalidOperationException("Allocation start date cannot be in the past.");
+
+            if (dto.FromDate.Date < project.StartDate.Date || dto.ToDate.Date > project.EndDate.Date)
+                throw new InvalidOperationException($"Allocation dates ({dto.FromDate:dd-MMM-yyyy} to {dto.ToDate:dd-MMM-yyyy}) must be within the project timeframe ({project.StartDate:dd-MMM-yyyy} to {project.EndDate:dd-MMM-yyyy}).");
+
             await ValidateUtilisationLimitAsync(dto.ResourceId, dto.UtilisationPct, dto.FromDate, dto.ToDate);
 
             var allocation = new Allocation(dto.ResourceId, dto.ProjectId, dto.UtilisationPct, dto.FromDate, dto.ToDate);
@@ -128,7 +134,7 @@ namespace PRMTool.Application.Services
                 ProjectId = a.ProjectId,
                 ResourceName = a.Resource?.User?.FullName ?? string.Empty,
                 ProjectName = a.Project?.Name ?? string.Empty,
-                UtilisationPct = a.UtilisationPct,
+                UtilizationPercent = a.UtilisationPct,
                 FromDate = a.FromDate.ToString("dd-MM-yyyy"),
                 ToDate = a.ToDate.ToString("dd-MM-yyyy"),
                 IsActive = a.IsActive

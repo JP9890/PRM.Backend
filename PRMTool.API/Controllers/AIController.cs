@@ -41,5 +41,15 @@ namespace PRMTool.API.Controllers
             var matches = await _aiService.SearchTeamResourcesAsync(request.ManagerId, request.Query, request.ProjectId);
             return Ok(matches);
         }
+
+        [HttpPost("build-team/{managerId}")]
+        public async Task<IActionResult> BuildTeam(int managerId, [FromBody] TeamBuilderRequestDto request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var result = await _aiService.BuildTeamAsync(managerId, request);
+            return Ok(result);
+        }
     }
 }

@@ -16,6 +16,7 @@ namespace PRMTool.Application.DTOs
         public int UserId { get; set; }
         public string FullName { get; set; } = string.Empty;
         public string? Department { get; set; }
+        public string RoleName { get; set; } = string.Empty;
 
         // Manager info
         public int? ManagerId { get; set; }
@@ -61,9 +62,12 @@ namespace PRMTool.Application.DTOs
         public string ToDate { get; set; } = string.Empty;
     }
 
-    // ──────────────────────────────────────────────────────
-    // Assign Manager
-    // ──────────────────────────────────────────────────────
+    public class UpdateEmployeeBasicDto
+    {
+        [Required]
+        public string FullName { get; set; } = string.Empty;
+        public string? Department { get; set; }
+    }
 
     public class AssignManagerDto
     {
@@ -74,14 +78,10 @@ namespace PRMTool.Application.DTOs
         public int ManagerUserId { get; set; }
     }
 
-    // ──────────────────────────────────────────────────────
-    // Skills Management (using Skill lookup table)
-    // ──────────────────────────────────────────────────────
-
     public class AddSkillDto
     {
         [Required]
-        public int SkillId { get; set; }
+        public string SkillName { get; set; } = string.Empty;
 
         [Required]
         public int ProficiencyLevelId { get; set; }
@@ -92,10 +92,6 @@ namespace PRMTool.Application.DTOs
         [Required]
         public int ProficiencyLevelId { get; set; }
     }
-
-    // ──────────────────────────────────────────────────────
-    // Skill & Proficiency Lookup DTOs (for frontend dropdowns)
-    // ──────────────────────────────────────────────────────
 
     public class SkillLookupDto
     {

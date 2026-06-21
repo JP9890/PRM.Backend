@@ -42,6 +42,20 @@ namespace PRMTool.API.Controllers
             return Ok(profile);
         }
 
+        [HttpPut("{id}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> UpdateEmployee(int id, [FromBody] UpdateEmployeeBasicDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var profile = await _resourceProfileService.UpdateEmployeeAsync(id, dto);
+            if (profile == null)
+                return NotFound(new { message = "Resource profile not found." });
+
+            return Ok(profile);
+        }
+
         [HttpPost("{id}/deactivate")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Deactivate(int id)
@@ -79,11 +93,30 @@ namespace PRMTool.API.Controllers
         }
 
         [HttpPost("{resourceId}/skills")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Manager,Employee")]
         public async Task<IActionResult> AddSkill(int resourceId, [FromBody] AddSkillDto dto)
         {
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
+
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var loggedInUserId))
+                return Unauthorized();
+
+            var targetProfile = await _resourceProfileService.GetByIdAsync(resourceId);
+            if (targetProfile == null)
+                return NotFound(new { message = "Resource profile not found." });
+
+            if (User.IsInRole("Employee"))
+            {
+                if (targetProfile.UserId != loggedInUserId)
+                    return StatusCode(403, new { message = "Employees can only manage their own skills." });
+            }
+            else if (User.IsInRole("Manager"))
+            {
+                if (targetProfile.UserId != loggedInUserId && targetProfile.ManagerId != loggedInUserId)
+                    return StatusCode(403, new { message = "Managers can only manage skills for themselves or their direct team members." });
+            }
 
             try
             {
@@ -97,11 +130,30 @@ namespace PRMTool.API.Controllers
         }
 
         [HttpPut("{resourceId}/skills/{skillId}")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Manager,Employee")]
         public async Task<IActionResult> UpdateSkillProficiency(int resourceId, int skillId, [FromBody] UpdateSkillProficiencyDto dto)
         {
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
+
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var loggedInUserId))
+                return Unauthorized();
+
+            var targetProfile = await _resourceProfileService.GetByIdAsync(resourceId);
+            if (targetProfile == null)
+                return NotFound(new { message = "Resource profile not found." });
+
+            if (User.IsInRole("Employee"))
+            {
+                if (targetProfile.UserId != loggedInUserId)
+                    return StatusCode(403, new { message = "Employees can only manage their own skills." });
+            }
+            else if (User.IsInRole("Manager"))
+            {
+                if (targetProfile.UserId != loggedInUserId && targetProfile.ManagerId != loggedInUserId)
+                    return StatusCode(403, new { message = "Managers can only manage skills for themselves or their direct team members." });
+            }
 
             var skill = await _resourceProfileService.UpdateSkillProficiencyAsync(resourceId, skillId, dto);
             if (skill == null)
@@ -111,9 +163,28 @@ namespace PRMTool.API.Controllers
         }
 
         [HttpDelete("{resourceId}/skills/{skillId}")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Manager,Employee")]
         public async Task<IActionResult> RemoveSkill(int resourceId, int skillId)
         {
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var loggedInUserId))
+                return Unauthorized();
+
+            var targetProfile = await _resourceProfileService.GetByIdAsync(resourceId);
+            if (targetProfile == null)
+                return NotFound(new { message = "Resource profile not found." });
+
+            if (User.IsInRole("Employee"))
+            {
+                if (targetProfile.UserId != loggedInUserId)
+                    return StatusCode(403, new { message = "Employees can only manage their own skills." });
+            }
+            else if (User.IsInRole("Manager"))
+            {
+                if (targetProfile.UserId != loggedInUserId && targetProfile.ManagerId != loggedInUserId)
+                    return StatusCode(403, new { message = "Managers can only manage skills for themselves or their direct team members." });
+            }
+
             var success = await _resourceProfileService.RemoveSkillAsync(resourceId, skillId);
             if (!success)
                 return NotFound(new { message = "Skill not found." });

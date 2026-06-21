@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Moq;
 using PRMTool.Application.DTOs;
+using PRMTool.Application.Interfaces;
 using PRMTool.Application.Services;
 using PRMTool.Domain.Entities;
 using PRMTool.Domain.Interfaces;
@@ -16,6 +17,10 @@ namespace PRMTool.Tests
         private readonly Mock<ITimesheetRepository> _timesheetRepoMock;
         private readonly Mock<IResourceProfileRepository> _profileRepoMock;
         private readonly Mock<IActivityTagRepository> _activityTagRepoMock;
+        private readonly Mock<ITimesheetReminderLogRepository> _reminderLogRepoMock;
+        private readonly Mock<IUserPermissionBlockRepository> _permissionBlockRepoMock;
+        private readonly Mock<IUserRepository> _userRepoMock;
+        private readonly Mock<INotificationService> _notificationServiceMock;
         private readonly TimesheetService _service;
 
         public TimesheetServiceTests()
@@ -23,11 +28,19 @@ namespace PRMTool.Tests
             _timesheetRepoMock = new Mock<ITimesheetRepository>();
             _profileRepoMock = new Mock<IResourceProfileRepository>();
             _activityTagRepoMock = new Mock<IActivityTagRepository>();
+            _reminderLogRepoMock = new Mock<ITimesheetReminderLogRepository>();
+            _permissionBlockRepoMock = new Mock<IUserPermissionBlockRepository>();
+            _userRepoMock = new Mock<IUserRepository>();
+            _notificationServiceMock = new Mock<INotificationService>();
 
             _service = new TimesheetService(
                 _timesheetRepoMock.Object,
                 _profileRepoMock.Object,
-                _activityTagRepoMock.Object);
+                _activityTagRepoMock.Object,
+                _reminderLogRepoMock.Object,
+                _permissionBlockRepoMock.Object,
+                _userRepoMock.Object,
+                _notificationServiceMock.Object);
         }
 
         [Fact]

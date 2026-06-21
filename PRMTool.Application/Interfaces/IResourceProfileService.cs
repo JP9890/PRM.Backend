@@ -11,6 +11,7 @@ namespace PRMTool.Application.Interfaces
         Task<ResourceProfileDto?> GetByUserIdAsync(int userId);
         Task<ResourceProfileDto?> DeactivateAsync(int id);
         Task<ResourceProfileDto?> AssignManagerAsync(AssignManagerDto dto);
+        Task<ResourceProfileDto?> UpdateEmployeeAsync(int id, UpdateEmployeeBasicDto dto);
 
         // Skills
         Task<ResourceSkillDto> AddSkillAsync(int resourceProfileId, AddSkillDto dto);

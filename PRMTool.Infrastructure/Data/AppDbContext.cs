@@ -39,6 +39,9 @@ namespace PRMTool.Infrastructure.Data
 
         public DbSet<SystemSetting> SystemSettings { get; set; } = null!;
 
+        public DbSet<TimesheetReminderLog> TimesheetReminderLogs { get; set; } = null!;
+        public DbSet<UserPermissionBlock> UserPermissionBlocks { get; set; } = null!;
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -52,6 +55,7 @@ namespace PRMTool.Infrastructure.Data
             ConfigureSchedulerSnapshots(modelBuilder);
             ConfigureTimesheets(modelBuilder);
             ConfigureSystemSettings(modelBuilder);
+            ConfigureTimesheetRemindersAndPermissionBlocks(modelBuilder);
 
             SeedLookupData(modelBuilder);
             SeedPermissionsAndRolePermissions(modelBuilder);
@@ -221,6 +225,26 @@ namespace PRMTool.Infrastructure.Data
             m.Entity<SystemSetting>().HasIndex(s => s.Key).IsUnique();
         }
 
+        private static void ConfigureTimesheetRemindersAndPermissionBlocks(ModelBuilder m)
+        {
+            m.Entity<TimesheetReminderLog>()
+                .HasOne(r => r.Resource).WithMany()
+                .HasForeignKey(r => r.ResourceId).OnDelete(DeleteBehavior.Cascade);
+
+            m.Entity<TimesheetReminderLog>()
+                .HasIndex(r => new { r.ResourceId, r.WeekStartDate }).IsUnique();
+
+            m.Entity<UserPermissionBlock>()
+                .HasOne(b => b.User).WithMany()
+                .HasForeignKey(b => b.UserId).OnDelete(DeleteBehavior.Cascade);
+
+            m.Entity<UserPermissionBlock>()
+                .HasOne(b => b.Permission).WithMany()
+                .HasForeignKey(b => b.PermissionId).OnDelete(DeleteBehavior.Cascade);
+
+            m.Entity<UserPermissionBlock>()
+                .HasIndex(b => new { b.UserId, b.PermissionId }).IsUnique();
+        }
         private static void SeedLookupData(ModelBuilder m)
         {
             m.Entity<Role>().HasData(

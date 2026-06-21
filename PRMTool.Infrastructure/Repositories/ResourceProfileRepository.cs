@@ -21,6 +21,7 @@ namespace PRMTool.Infrastructure.Repositories
         {
             return await _context.ResourceProfiles
                 .Include(rp => rp.User)
+                    .ThenInclude(u => u!.Role)
                 .Include(rp => rp.Manager)
                 .Include(rp => rp.Skills)
                     .ThenInclude(rs => rs.Skill)
@@ -36,6 +37,7 @@ namespace PRMTool.Infrastructure.Repositories
         {
             return await _context.ResourceProfiles
                 .Include(rp => rp.User)
+                    .ThenInclude(u => u!.Role)
                 .Include(rp => rp.Skills)
                     .ThenInclude(rs => rs.Skill)
                 .Include(rp => rp.Allocations)
@@ -47,8 +49,11 @@ namespace PRMTool.Infrastructure.Repositories
         {
             return await _context.ResourceProfiles
                 .Include(rp => rp.User)
+                    .ThenInclude(u => u!.Role)
                 .Include(rp => rp.Skills)
                     .ThenInclude(rs => rs.Skill)
+                .Include(rp => rp.Skills)
+                    .ThenInclude(rs => rs.ProficiencyLevel)
                 .Include(rp => rp.Allocations)
                 .Where(rp => rp.IsActive)
                 .OrderBy(rp => rp.User!.FullName)
@@ -61,6 +66,8 @@ namespace PRMTool.Infrastructure.Repositories
                 .Include(rp => rp.User)
                 .Include(rp => rp.Skills)
                     .ThenInclude(rs => rs.Skill)
+                .Include(rp => rp.Skills)
+                    .ThenInclude(rs => rs.ProficiencyLevel)
                 .Include(rp => rp.Allocations)
                     .ThenInclude(a => a.Project)
                 .Where(rp => rp.ManagerId == managerId && rp.IsActive)
