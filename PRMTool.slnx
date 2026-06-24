@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="PRMTool.API/PRMTool.API.csproj" />
+  <Project Path="PRMTool.Application/PRMTool.Application.csproj" />
+  <Project Path="PRMTool.Domain/PRMTool.Domain.csproj" />
+  <Project Path="PRMTool.Infrastructure/PRMTool.Infrastructure.csproj" />
+  <Project Path="PRMTool.Tests/PRMTool.Tests.csproj" />
+</Solution>

@@ -1,0 +1,11 @@
+using System.Threading.Tasks;
+using PRMTool.Application.DTOs;
+
+namespace PRMTool.Application.Interfaces
+{
+    public interface IAuthService
+    {
+        Task<AuthResponseDto?> AuthenticateAsync(string username, string password);
+        Task<(bool Success, string ErrorMessage)> ChangePasswordAsync(string username, string oldPassword, string newPassword);
+    }
+}
